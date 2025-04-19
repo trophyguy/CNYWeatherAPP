@@ -53,6 +53,12 @@ class WeatherData {
   final String maxTempTime;
   final double minTemp;
   final String minTempTime;
+  final double maxTempLastYear;
+  final double minTempLastYear;
+  final double maxTempRecord;
+  final double minTempRecord;
+  final double maxTempAverage;
+  final double minTempAverage;
   final double feelsLike;
   final double heatIndex;
   final double windChill;
@@ -109,6 +115,10 @@ class WeatherData {
   // Advisories
   final List<WeatherAdvisory> advisories;
 
+  // New fields
+  final double maxTempYesterday;
+  final double minTempYesterday;
+
   WeatherData({
     required this.lastUpdatedTime,
     required this.lastUpdatedDate,
@@ -120,6 +130,12 @@ class WeatherData {
     required this.maxTempTime,
     required this.minTemp,
     required this.minTempTime,
+    required this.maxTempLastYear,
+    required this.minTempLastYear,
+    required this.maxTempRecord,
+    required this.minTempRecord,
+    required this.maxTempAverage,
+    required this.minTempAverage,
     required this.feelsLike,
     required this.heatIndex,
     required this.windChill,
@@ -163,6 +179,8 @@ class WeatherData {
     required this.snowDaysThisMonth,
     required this.snowDaysThisYear,
     required this.advisories,
+    required this.maxTempYesterday,
+    required this.minTempYesterday,
   });
 
   factory WeatherData.fromJson(Map<String, dynamic> json) {
@@ -178,6 +196,12 @@ class WeatherData {
       maxTempTime: json['maxTempTime'] ?? '',
       minTemp: json['minTemp'] ?? 0.0,
       minTempTime: json['minTempTime'] ?? '',
+      maxTempLastYear: json['maxTempLastYear'] ?? 0.0,
+      minTempLastYear: json['minTempLastYear'] ?? 0.0,
+      maxTempRecord: json['maxTempRecord'] ?? 0.0,
+      minTempRecord: json['minTempRecord'] ?? 0.0,
+      maxTempAverage: json['maxTempAverage'] ?? 0.0,
+      minTempAverage: json['minTempAverage'] ?? 0.0,
       feelsLike: json['feelsLike'] ?? 0.0,
       heatIndex: json['heatIndex'] ?? 0.0,
       windChill: json['windChill'] ?? 0.0,
@@ -223,6 +247,8 @@ class WeatherData {
       advisories: (json['advisories'] as List<dynamic>?)
           ?.map((e) => WeatherAdvisory.fromJson(e))
           .toList() ?? [],
+      maxTempYesterday: json['maxTempYesterday'] ?? 0.0,
+      minTempYesterday: json['minTempYesterday'] ?? 0.0,
     );
   }
 
@@ -238,6 +264,12 @@ class WeatherData {
       'maxTempTime': maxTempTime,
       'minTemp': minTemp,
       'minTempTime': minTempTime,
+      'maxTempLastYear': maxTempLastYear,
+      'minTempLastYear': minTempLastYear,
+      'maxTempRecord': maxTempRecord,
+      'minTempRecord': minTempRecord,
+      'maxTempAverage': maxTempAverage,
+      'minTempAverage': minTempAverage,
       'feelsLike': feelsLike,
       'heatIndex': heatIndex,
       'windChill': windChill,
@@ -281,6 +313,8 @@ class WeatherData {
       'snowDaysThisMonth': snowDaysThisMonth,
       'snowDaysThisYear': snowDaysThisYear,
       'advisories': advisories.map((e) => e.toJson()).toList(),
+      'maxTempYesterday': maxTempYesterday,
+      'minTempYesterday': minTempYesterday,
     };
   }
 
@@ -296,6 +330,12 @@ class WeatherData {
       maxTempTime: changes['maxTempTime']?.toString() ?? maxTempTime,
       minTemp: (changes['minTemp'] as num?)?.toDouble() ?? minTemp,
       minTempTime: changes['minTempTime']?.toString() ?? minTempTime,
+      maxTempLastYear: (changes['maxTempLastYear'] as num?)?.toDouble() ?? maxTempLastYear,
+      minTempLastYear: (changes['minTempLastYear'] as num?)?.toDouble() ?? minTempLastYear,
+      maxTempRecord: (changes['maxTempRecord'] as num?)?.toDouble() ?? maxTempRecord,
+      minTempRecord: (changes['minTempRecord'] as num?)?.toDouble() ?? minTempRecord,
+      maxTempAverage: (changes['maxTempAverage'] as num?)?.toDouble() ?? maxTempAverage,
+      minTempAverage: (changes['minTempAverage'] as num?)?.toDouble() ?? minTempAverage,
       feelsLike: (changes['feelsLike'] as num?)?.toDouble() ?? feelsLike,
       heatIndex: (changes['heatIndex'] as num?)?.toDouble() ?? heatIndex,
       windChill: (changes['windChill'] as num?)?.toDouble() ?? windChill,
@@ -341,6 +381,8 @@ class WeatherData {
       advisories: changes['advisories'] != null 
           ? _parseAdvisories(changes['advisories'].toString())
           : advisories,
+      maxTempYesterday: (changes['maxTempYesterday'] as num?)?.toDouble() ?? maxTempYesterday,
+      minTempYesterday: (changes['minTempYesterday'] as num?)?.toDouble() ?? minTempYesterday,
     );
   }
 

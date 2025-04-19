@@ -13,6 +13,24 @@ class CurrentConditionsCard extends StatelessWidget {
   Widget build(BuildContext context) {
     debugPrint('CurrentConditionsCard - tempNoDecimal: ${weatherData.tempNoDecimal}');
     debugPrint('CurrentConditionsCard - temperature: ${weatherData.temperature}');
+    
+    // Debug prints for last year, record, and average temperatures
+    debugPrint('\nCurrentConditionsCard - Last Year Temperatures:');
+    debugPrint('maxTempLastYear: ${weatherData.maxTempLastYear}');
+    debugPrint('minTempLastYear: ${weatherData.minTempLastYear}');
+    
+    debugPrint('\nCurrentConditionsCard - Record Temperatures:');
+    debugPrint('maxTempRecord: ${weatherData.maxTempRecord}');
+    debugPrint('minTempRecord: ${weatherData.minTempRecord}');
+    
+    debugPrint('\nCurrentConditionsCard - Average Temperatures:');
+    debugPrint('maxTempAverage: ${weatherData.maxTempAverage}');
+    debugPrint('minTempAverage: ${weatherData.minTempAverage}');
+    
+    // Check for new records
+    final isNewRecordHigh = weatherData.maxTemp > weatherData.maxTempRecord;
+    final isNewRecordLow = weatherData.minTemp < weatherData.minTempRecord;
+    
     return RepaintBoundary(
       child: Card(
         elevation: 4,
@@ -62,23 +80,25 @@ class CurrentConditionsCard extends StatelessWidget {
                   children: [
                     _buildTemperatureColumn('Today', 
                       weatherData.maxTemp.toInt(), 
-                      weatherData.minTemp.toInt()),
+                      weatherData.minTemp.toInt(),
+                      isNewRecordHigh: isNewRecordHigh,
+                      isNewRecordLow: isNewRecordLow),
                     const SizedBox(width: 16),
                     _buildTemperatureColumn('Yesterday', 
-                      37, // Replace with actual data when available
-                      34),
+                      weatherData.maxTempYesterday.toInt(), 
+                      weatherData.minTempYesterday.toInt()),
                     const SizedBox(width: 16),
                     _buildTemperatureColumn('Last Year', 
-                      41, // Replace with actual data when available
-                      33),
+                      weatherData.maxTempLastYear.toInt(), 
+                      weatherData.minTempLastYear.toInt()),
                     const SizedBox(width: 16),
                     _buildTemperatureColumn('Record', 
-                      53, // Replace with actual data when available
-                      31),
+                      weatherData.maxTempRecord.toInt(), 
+                      weatherData.minTempRecord.toInt()),
                     const SizedBox(width: 16),
                     _buildTemperatureColumn('Average', 
-                      53, // Replace with actual data when available
-                      31),
+                      weatherData.maxTempAverage.toInt(), 
+                      weatherData.minTempAverage.toInt()),
                   ],
                 ),
               ),
@@ -98,7 +118,7 @@ class CurrentConditionsCard extends StatelessWidget {
     );
   }
 
-  Widget _buildTemperatureColumn(String label, int high, int low) {
+  Widget _buildTemperatureColumn(String label, int high, int low, {bool isNewRecordHigh = false, bool isNewRecordLow = false}) {
     return Column(
       children: [
         Text(
@@ -114,13 +134,13 @@ class CurrentConditionsCard extends StatelessWidget {
             style: const TextStyle(fontSize: 14),
             children: [
               TextSpan(
-                text: 'Hi ${high}°\n',
+                text: 'Hi ${high}°${isNewRecordHigh ? '*' : ''}\n',
                 style: const TextStyle(
                   color: Colors.red,
                 ),
               ),
               TextSpan(
-                text: 'Lo ${low}°',
+                text: 'Lo ${low}°${isNewRecordLow ? '*' : ''}',
                 style: const TextStyle(
                   color: Colors.blue,
                 ),
@@ -128,6 +148,20 @@ class CurrentConditionsCard extends StatelessWidget {
             ],
           ),
         ),
+        if (isNewRecordHigh || isNewRecordLow) ...[
+          const SizedBox(height: 4),
+          Text(
+            isNewRecordHigh && isNewRecordLow 
+                ? '* New Record High & Low' 
+                : isNewRecordHigh 
+                    ? '* New Record High' 
+                    : '* New Record Low',
+            style: const TextStyle(
+              fontSize: 10,
+              color: Colors.amber,
+            ),
+          ),
+        ],
       ],
     );
   }

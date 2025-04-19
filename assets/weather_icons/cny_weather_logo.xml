@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="48dp"
+    android:height="48dp"
+    android:viewportWidth="48"
+    android:viewportHeight="48">
+    <!-- Sun background -->
+    <path
+        android:fillColor="#90EE90"
+        android:pathData="M0,0h48v48h-48z"/>
+    <!-- Sun rays -->
+    <path
+        android:fillColor="#FFD700"
+        android:pathData="M24,4 L28,12 20,12z
+                         M36,12 L32,20 24,16z
+                         M44,24 L36,28 36,20z
+                         M36,36 L28,32 32,24z
+                         M24,44 L20,36 28,36z
+                         M12,36 L16,28 24,32z
+                         M4,24 L12,20 12,28z
+                         M12,12 L20,16 16,24z"/>
+    <!-- Sun center -->
+    <path
+        android:fillColor="#FFD700"
+        android:pathData="M24,16 A8,8 0 1,1 24,32 A8,8 0 1,1 24,16"/>
+</vector> 

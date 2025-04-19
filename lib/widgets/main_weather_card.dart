@@ -30,7 +30,7 @@ class MainWeatherCard extends StatelessWidget {
               ),
               const SizedBox(height: 8),
               Text(
-                'Updated: ${weather.time}',
+                'Updated: ${weather.lastUpdatedTime}',
                 style: const TextStyle(fontSize: 14),
               ),
             ],
