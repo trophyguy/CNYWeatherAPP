@@ -1,3 +1,5 @@
+A work in progress
+
 # CNY Weather App
 
 A Flutter application that displays weather information for Central New York, featuring real-time temperature data, weather conditions, and historical weather comparisons.
