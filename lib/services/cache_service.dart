@@ -3,30 +3,53 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../models/weather_data.dart';
 
 class CacheService {
-  static const String _weatherKey = 'cached_weather_data';
-  static const String _lastUpdateKey = 'last_update_time';
   late SharedPreferences _prefs;
+  static const String _weatherDataKey = 'weather_data';
+  static const String _lastUpdateKey = 'last_update';
+  static const Duration _cacheDuration = Duration(minutes: 5);
 
   Future<void> init() async {
     _prefs = await SharedPreferences.getInstance();
   }
 
-  Future<void> cacheWeatherData(WeatherData data) async {
-    await _prefs.setString(_weatherKey, jsonEncode(data.toJson()));
+  Future<void> cacheWeatherData(Map<String, dynamic> data) async {
+    if (!_prefs.containsKey(_lastUpdateKey)) {
+      await init();
+    }
+    await _prefs.setString(_weatherDataKey, data.toString());
     await _prefs.setString(_lastUpdateKey, DateTime.now().toIso8601String());
   }
 
-  WeatherData? getCachedWeatherData() {
-    final String? cachedData = _prefs.getString(_weatherKey);
+  Future<Map<String, dynamic>?> getCachedWeatherData() async {
+    if (!_prefs.containsKey(_lastUpdateKey)) {
+      await init();
+    }
+    final lastUpdate = _prefs.getString(_lastUpdateKey);
+    if (lastUpdate == null) return null;
+
+    final lastUpdateTime = DateTime.parse(lastUpdate);
+    if (DateTime.now().difference(lastUpdateTime) > _cacheDuration) {
+      return null;
+    }
+
+    final cachedData = _prefs.getString(_weatherDataKey);
     if (cachedData == null) return null;
 
     try {
-      final Map<String, dynamic> jsonData = jsonDecode(cachedData);
-      return WeatherData.fromJson(jsonData);
+      // Parse the cached data string back into a Map
+      return Map<String, dynamic>.from(eval(cachedData));
     } catch (e) {
-      print('Error reading cached data: $e');
       return null;
     }
+  }
+
+  // Helper function to safely evaluate the cached data string
+  dynamic eval(String str) {
+    return str
+        .replaceAll('{', '{"')
+        .replaceAll(': ', '": "')
+        .replaceAll(', ', '", "')
+        .replaceAll('}', '"}');
   }
 
   DateTime? getLastUpdateTime() {

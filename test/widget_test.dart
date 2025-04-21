@@ -13,39 +13,48 @@ import 'package:cnyweatherapp/services/weather_service.dart';
 import 'package:cnyweatherapp/repositories/weather_repository.dart';
 import 'package:cnyweatherapp/services/cache_service.dart';
 import 'package:cnyweatherapp/models/weather_data.dart';
+import 'package:cnyweatherapp/services/openweather_service.dart';
 
 class MockWeatherRepository extends WeatherRepository {
-  MockWeatherRepository(super.cacheService);
+  MockWeatherRepository(super.cacheService, super.openWeatherService);
 
   @override
   Future<WeatherData> getWeatherData() async {
     return WeatherData(
+      lastUpdatedTime: '12:00 PM',
+      lastUpdatedDate: '4/19/2024',
       temperature: 72.0,
       tempNoDecimal: 72.0,
       humidity: 45.0,
-      windSpeed: 5.0,
-      windDirection: 'N',
-      pressure: 1015.0,
-      feelsLike: 73.0,
-      lastUpdatedTime: '12:00 PM',
-      lastUpdatedDate: '4/19/2024',
       dewPoint: 50.0,
       maxTemp: 75.0,
       maxTempTime: '2:00 PM',
       minTemp: 65.0,
       minTempTime: '6:00 AM',
+      maxTempLastYear: 70.0,
+      minTempLastYear: 60.0,
+      maxTempRecord: 80.0,
+      minTempRecord: 55.0,
+      maxTempAverage: 70.0,
+      minTempAverage: 60.0,
+      feelsLike: 73.0,
       heatIndex: 72.0,
       windChill: 72.0,
       humidex: 72.0,
       apparentTemp: 72.0,
       apparentSolarTemp: 72.0,
+      tempChangeHour: 1.0,
+      aqi: 2.0,
+      windSpeed: 5.0,
       windGust: 8.0,
       maxGust: 10.0,
       maxGustTime: '1:00 PM',
+      windDirection: 'N',
       windDirectionDegrees: 0,
       avgWind10Min: 5.0,
       beaufortScale: '2',
       beaufortText: 'Light breeze',
+      pressure: 1015.0,
       pressureTrend: 'Rising',
       pressureTrend3Hour: 'Rising',
       forecastText: 'Clear skies',
@@ -73,6 +82,8 @@ class MockWeatherRepository extends WeatherRepository {
       snowDaysThisMonth: 0,
       snowDaysThisYear: 0,
       advisories: [],
+      maxTempYesterday: 70.0,
+      minTempYesterday: 60.0,
     );
   }
 
@@ -93,7 +104,8 @@ void main() {
 
   setUp(() {
     final cacheService = CacheService();
-    final weatherRepository = MockWeatherRepository(cacheService);
+    final openWeatherService = OpenWeatherService('test_key');
+    final weatherRepository = MockWeatherRepository(cacheService, openWeatherService);
     weatherService = WeatherService(weatherRepository, cacheService);
   });
 
@@ -143,6 +155,8 @@ void main() {
       humidex: 65.0,
       apparentTemp: 64.0,
       apparentSolarTemp: 64.0,
+      tempChangeHour: 1.0,
+      aqi: 2.0,
       windSpeed: 5.0,
       windGust: 10.0,
       maxGust: 15.0,

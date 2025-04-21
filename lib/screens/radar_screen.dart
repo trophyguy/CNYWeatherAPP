@@ -5,13 +5,8 @@ class RadarScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Radar'),
-      ),
-      body: const Center(
-        child: Text('Radar screen coming soon'),
-      ),
+    return const Center(
+      child: Text('Radar Screen - Coming Soon'),
     );
   }
 } 

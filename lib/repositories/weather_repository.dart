@@ -3,62 +3,95 @@ import 'dart:math';
 import 'package:http/http.dart' as http;
 import '../models/weather_data.dart';
 import '../services/cache_service.dart';
+import '../services/openweather_service.dart';
 import 'package:flutter/foundation.dart';
 
 class WeatherRepository {
   final CacheService _cacheService;
+  final OpenWeatherService _openWeatherService;
   static const String _testTagsUrl = 'https://cnyweather.com/testtags.php?sce=view';
-  static const String _clientRawUrl = 'https://cnyweather.com/clientraw.txt';
+  // static const String _clientRawUrl = 'https://cnyweather.com/clientraw.txt';
+  static const double _stationLat = 43.2105; // Rome, NY latitude
+  static const double _stationLon = -75.4557; // Rome, NY longitude
+  static const String _baseUrl = 'https://cnyweather.com/testtags.php?sce=view';
 
-  WeatherRepository(this._cacheService);
+  WeatherRepository(this._cacheService, this._openWeatherService);
 
   Future<WeatherData> getWeatherData() async {
     try {
-      // First try to get the testtags data
+      // Try to get cached data first
+      final cachedData = await _cacheService.getCachedWeatherData();
+      if (cachedData != null) {
+        return WeatherData.fromJson(cachedData);
+      }
+
+      // If no cached data or cache is stale, fetch fresh data
       final response = await http.get(
-        Uri.parse(_testTagsUrl),
+        Uri.parse(_baseUrl),
         headers: {'Accept-Charset': 'utf-8'},
       );
-      
       if (response.statusCode == 200) {
         // Convert bytes to string, replacing any invalid UTF-8 sequences
         final cleanedBody = String.fromCharCodes(
           response.bodyBytes.where((byte) => byte < 128)
         );
         
-        // Debug: Print the first few lines of raw data
-        debugPrint('\nFirst few lines of raw data:');
-        final firstFewLines = cleanedBody.split('\n').take(100).join('\n');
-        debugPrint(firstFewLines);
+        // Get AQI data from OpenWeatherMap
+        double aqiValue = 0.0;
+        try {
+          final aqiData = await _openWeatherService.getAirQuality(_stationLat, _stationLon);
+          debugPrint('AQI Data: $aqiData');
+          aqiValue = aqiData['aqi']?.toDouble() ?? 0.0;
+          debugPrint('AQI Value: $aqiValue');
+        } catch (e) {
+          debugPrint('Warning: Failed to fetch AQI data: $e');
+          // Continue with default AQI value
+        }
         
-        final data = _parseTestTags(cleanedBody);
-        await _cacheService.cacheWeatherData(data);
+        final data = _parseTestTags(cleanedBody, aqiValue);
+        await _cacheService.cacheWeatherData(data.toJson());
         return data;
+      } else {
+        throw Exception('Failed to load weather data: ${response.statusCode}');
       }
-      throw Exception('Failed to fetch testtags data');
     } catch (e) {
-      // If testtags fails, try to get cached data
-      final cachedData = _cacheService.getCachedWeatherData();
-      if (cachedData != null) {
-        return cachedData;
-      }
-      throw Exception('Failed to fetch weather data and no cached data available');
+      throw Exception('Error fetching weather data: $e');
     }
   }
 
+  // TODO: Implement quick update functionality
   Future<Map<String, dynamic>> getQuickUpdate() async {
-    try {
-      final response = await http.get(Uri.parse(_clientRawUrl));
-      if (response.statusCode == 200) {
-        return _parseClientRaw(response.body);
-      }
-      throw Exception('Failed to fetch quick update data');
-    } catch (e) {
-      throw Exception('Failed to fetch quick update data: $e');
-    }
+    // Temporarily return empty map until clientraw.txt implementation is complete
+    return {
+      'temperature': 0.0,
+      'humidity': 0.0,
+      'windSpeed': 0.0,
+      'windDirection': '',
+      'pressure': 0.0,
+    };
   }
 
-  WeatherData _parseTestTags(String data) {
+  // Map<String, dynamic> _parseQuickUpdate(String html) {
+  //   // TODO: Implement clientraw.txt parsing logic
+  //   // This will parse the quick update data into a map of values
+  //   final Map<String, dynamic> values = {};
+  //   final parts = html.split(' ');
+    
+  //   // Map the parts to their corresponding values
+  //   // This mapping will need to be adjusted based on the actual clientraw.txt format
+  //   if (parts.length >= 10) {
+  //     values['temperature'] = double.tryParse(parts[4]) ?? 0.0;
+  //     values['humidity'] = double.tryParse(parts[5]) ?? 0.0;
+  //     values['windSpeed'] = double.tryParse(parts[1]) ?? 0.0;
+  //     values['windDirection'] = parts[2];
+  //     values['pressure'] = double.tryParse(parts[6]) ?? 0.0;
+  //     values['rainfall'] = double.tryParse(parts[7]) ?? 0.0;
+  //   }
+    
+  //   return values;
+  // }
+
+  WeatherData _parseTestTags(String html, double aqiValue) {
     final Map<String, String> variables = {};
     // First try with double quotes
     final doubleQuotePattern = RegExp(r'\$(\w+)\s*=\s*"([^"]*)"\s*;');
@@ -66,13 +99,13 @@ class WeatherRepository {
     final singleQuotePattern = RegExp(r"\$(\w+)\s*=\s*'([^']*)'\s*;");
     
     // Try both patterns
-    for (final match in doubleQuotePattern.allMatches(data)) {
+    for (final match in doubleQuotePattern.allMatches(html)) {
       final key = match.group(1)!;
       final value = match.group(2)!;
       variables[key] = value;
     }
     
-    for (final match in singleQuotePattern.allMatches(data)) {
+    for (final match in singleQuotePattern.allMatches(html)) {
       final key = match.group(1)!;
       final value = match.group(2)!;
       variables[key] = value;
@@ -83,6 +116,11 @@ class WeatherRepository {
     variables.forEach((key, value) {
       debugPrint('$key = $value');
     });
+    
+    // Debug: Print pressure and dew point values
+    debugPrint('\nPressure and Dew Point values:');
+    debugPrint('Raw barometer value: ${variables['barometer']}');
+    debugPrint('Raw dewpoint value: ${variables['dewpt']}');
     
     // Debug: Print temperature-related variables
     debugPrint('\nTemperature-related variables:');
@@ -97,7 +135,7 @@ class WeatherRepository {
     
     // Debug: Print the first few lines of raw data
     debugPrint('\nFirst few lines of raw data:');
-    final firstFewLines = data.split('\n').take(50).join('\n');
+    final firstFewLines = html.split('\n').take(50).join('\n');
     debugPrint(firstFewLines);
     
     debugPrint('Parsed values from test tags:');
@@ -164,13 +202,15 @@ class WeatherRepository {
     debugPrint('Parsed maxTempLastYear: $maxTempLastYear');
     debugPrint('Parsed minTempLastYear: $minTempLastYear');
 
+    final double uvIndex = double.tryParse(variables['uvindex']?.replaceAll(RegExp(r'[^\d.-]'), '') ?? '0') ?? 0.0;
+
     return WeatherData(
       lastUpdatedTime: variables['time'] ?? '',
       lastUpdatedDate: variables['date'] ?? '',
       temperature: tempnodp,
       tempNoDecimal: tempnodp,
       humidity: double.tryParse(variables['humidity']?.replaceAll(RegExp(r'[^\d.-]'), '') ?? '0') ?? 0.0,
-      dewPoint: double.tryParse(variables['dewpoint']?.replaceAll(RegExp(r'[^\d.-]'), '') ?? '0') ?? 0.0,
+      dewPoint: double.tryParse(variables['dewpt']?.replaceAll(RegExp(r'[^\d.-]'), '') ?? '0') ?? 0.0,
       maxTemp: maxTemp,
       maxTempTime: variables['maxtemptime'] ?? '',
       minTemp: minTemp,
@@ -187,6 +227,8 @@ class WeatherRepository {
       humidex: double.tryParse(variables['humidex']?.replaceAll(RegExp(r'[^\d.-]'), '') ?? '0') ?? 0.0,
       apparentTemp: double.tryParse(variables['apparenttemp']?.replaceAll(RegExp(r'[^\d.-]'), '') ?? '0') ?? 0.0,
       apparentSolarTemp: double.tryParse(variables['apparentsolartemp']?.replaceAll(RegExp(r'[^\d.-]'), '') ?? '0') ?? 0.0,
+      tempChangeHour: double.tryParse(variables['tempchangehour']?.replaceAll(RegExp(r'[^\d.-]'), '') ?? '0') ?? 0.0,
+      aqi: aqiValue,
       windSpeed: double.tryParse(variables['windspeed']?.replaceAll(RegExp(r'[^\d.-]'), '') ?? '0') ?? 0.0,
       windGust: double.tryParse(variables['windgust']?.replaceAll(RegExp(r'[^\d.-]'), '') ?? '0') ?? 0.0,
       maxGust: double.tryParse(variables['maxgust']?.replaceAll(RegExp(r'[^\d.-]'), '') ?? '0') ?? 0.0,
@@ -196,8 +238,8 @@ class WeatherRepository {
       avgWind10Min: double.tryParse(variables['avgwind10min']?.replaceAll(RegExp(r'[^\d.-]'), '') ?? '0') ?? 0.0,
       beaufortScale: variables['beaufortscale'] ?? '',
       beaufortText: variables['beauforttext'] ?? '',
-      pressure: double.tryParse(variables['barometer']?.replaceAll(RegExp(r'[^\d.-]'), '') ?? '0') ?? 0.0,
-      pressureTrend: variables['pressuretrend'] ?? '',
+      pressure: double.tryParse(variables['baro']?.replaceAll(RegExp(r'[^\d.-]'), '') ?? '0') ?? 0.0,
+      pressureTrend: variables['pressuretrendname'] ?? '',
       pressureTrend3Hour: variables['pressuretrend3hour'] ?? '',
       forecastText: variables['forecasttext'] ?? '',
       dailyRain: double.tryParse(variables['dailyrain']?.replaceAll(RegExp(r'[^\d.-]'), '') ?? '0') ?? 0.0,
@@ -209,7 +251,7 @@ class WeatherRepository {
       maxRainRate: double.tryParse(variables['maxrainrate']?.replaceAll(RegExp(r'[^\d.-]'), '') ?? '0') ?? 0.0,
       maxRainRateTime: variables['maxrainratetime'] ?? '',
       solarRadiation: double.tryParse(variables['solarradiation']?.replaceAll(RegExp(r'[^\d.-]'), '') ?? '0') ?? 0.0,
-      uvIndex: double.tryParse(variables['uvindex']?.replaceAll(RegExp(r'[^\d.-]'), '') ?? '0') ?? 0.0,
+      uvIndex: uvIndex,
       highSolar: double.tryParse(variables['highsolar']?.replaceAll(RegExp(r'[^\d.-]'), '') ?? '0') ?? 0.0,
       highUV: double.tryParse(variables['highuv']?.replaceAll(RegExp(r'[^\d.-]'), '') ?? '0') ?? 0.0,
       highSolarTime: variables['highsolartime'] ?? '',
@@ -227,26 +269,6 @@ class WeatherRepository {
       maxTempYesterday: maxTempYesterday,
       minTempYesterday: minTempYesterday,
     );
-  }
-
-  Map<String, dynamic> _parseClientRaw(String data) {
-    // TODO: Implement clientraw.txt parsing logic
-    // This will parse the quick update data into a map of values
-    final Map<String, dynamic> values = {};
-    final parts = data.split(' ');
-    
-    // Map the parts to their corresponding values
-    // This mapping will need to be adjusted based on the actual clientraw.txt format
-    if (parts.length >= 10) {
-      values['temperature'] = double.tryParse(parts[4]) ?? 0.0;
-      values['humidity'] = double.tryParse(parts[5]) ?? 0.0;
-      values['windSpeed'] = double.tryParse(parts[1]) ?? 0.0;
-      values['windDirection'] = parts[2];
-      values['pressure'] = double.tryParse(parts[6]) ?? 0.0;
-      values['rainfall'] = double.tryParse(parts[7]) ?? 0.0;
-    }
-    
-    return values;
   }
 
   Future<void> testParsing() async {
@@ -288,7 +310,7 @@ class WeatherRepository {
         }
         
         try {
-          final weatherData = _parseTestTags(decodedBody);
+          final weatherData = _parseTestTags(decodedBody, 0.0);
           debugPrint('\nParsing test completed successfully!');
         } catch (e) {
           debugPrint('Error parsing testtags data: $e');

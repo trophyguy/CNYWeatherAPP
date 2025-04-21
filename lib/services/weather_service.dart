@@ -4,8 +4,8 @@ import '../models/weather_data.dart';
 import '../repositories/weather_repository.dart';
 import '../services/cache_service.dart';
 
-class WeatherService with ChangeNotifier {
-  final WeatherRepository _weatherRepository;
+class WeatherService extends ChangeNotifier {
+  final WeatherRepository _repository;
   final CacheService _cacheService;
   WeatherData? _weatherData;
   bool _isLoading = false;
@@ -17,9 +17,14 @@ class WeatherService with ChangeNotifier {
   static const _quickUpdateInterval = Duration(seconds: 30);
   static const _debounceInterval = Duration(milliseconds: 500);
 
-  WeatherService(this._weatherRepository, this._cacheService) {
-    fetchWeatherData();
+  WeatherService(this._repository, this._cacheService) {
+    _init();
     _startUpdateTimers();
+  }
+
+  Future<void> _init() async {
+    await _cacheService.init();
+    await fetchWeatherData();
   }
 
   WeatherData? get weatherData => _weatherData;
@@ -41,24 +46,33 @@ class WeatherService with ChangeNotifier {
   }
 
   Future<void> fetchWeatherData() async {
-    try {
-      _isLoading = true;
-      _error = null;
-      notifyListeners();
+    _isLoading = true;
+    _error = null;
+    notifyListeners();
 
-      _weatherData = await _weatherRepository.getWeatherData();
-      _isLoading = false;
-      notifyListeners();
+    try {
+      // Try to get cached data first
+      final cachedData = await _cacheService.getCachedWeatherData();
+      if (cachedData != null) {
+        _weatherData = WeatherData.fromJson(cachedData);
+        notifyListeners();
+      }
+
+      // Fetch fresh data
+      final freshData = await _repository.getWeatherData();
+      _weatherData = freshData;
+      await _cacheService.cacheWeatherData(freshData.toJson());
     } catch (e) {
+      _error = 'Failed to fetch weather data: $e';
+    } finally {
       _isLoading = false;
-      _error = e.toString();
       notifyListeners();
     }
   }
 
   Future<void> _loadQuickUpdate() async {
     try {
-      final quickUpdate = await _weatherRepository.getQuickUpdate();
+      final quickUpdate = await _repository.getQuickUpdate();
       if (_weatherData != null) {
         // Update only the fields that change frequently
         final changes = {

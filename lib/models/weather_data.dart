@@ -65,6 +65,10 @@ class WeatherData {
   final double humidex;
   final double apparentTemp;
   final double apparentSolarTemp;
+  final double tempChangeHour;
+
+  // Air Quality
+  final double aqi;
 
   // Wind
   final double windSpeed;
@@ -142,6 +146,8 @@ class WeatherData {
     required this.humidex,
     required this.apparentTemp,
     required this.apparentSolarTemp,
+    required this.tempChangeHour,
+    required this.aqi,
     required this.windSpeed,
     required this.windGust,
     required this.maxGust,
@@ -208,6 +214,8 @@ class WeatherData {
       humidex: json['humidex'] ?? 0.0,
       apparentTemp: json['apparentTemp'] ?? 0.0,
       apparentSolarTemp: json['apparentSolarTemp'] ?? 0.0,
+      tempChangeHour: json['tempChangeHour'] ?? 0.0,
+      aqi: json['aqi'] ?? 0.0,
       windSpeed: json['windSpeed'] ?? 0.0,
       windGust: json['windGust'] ?? 0.0,
       maxGust: json['maxGust'] ?? 0.0,
@@ -276,6 +284,8 @@ class WeatherData {
       'humidex': humidex,
       'apparentTemp': apparentTemp,
       'apparentSolarTemp': apparentSolarTemp,
+      'tempChangeHour': tempChangeHour,
+      'aqi': aqi,
       'windSpeed': windSpeed,
       'windGust': windGust,
       'maxGust': maxGust,
@@ -342,6 +352,8 @@ class WeatherData {
       humidex: (changes['humidex'] as num?)?.toDouble() ?? humidex,
       apparentTemp: (changes['apparentTemp'] as num?)?.toDouble() ?? apparentTemp,
       apparentSolarTemp: (changes['apparentSolarTemp'] as num?)?.toDouble() ?? apparentSolarTemp,
+      tempChangeHour: (changes['tempChangeHour'] as num?)?.toDouble() ?? tempChangeHour,
+      aqi: (changes['aqi'] as num?)?.toDouble() ?? aqi,
       windSpeed: (changes['windSpeed'] as num?)?.toDouble() ?? windSpeed,
       windGust: (changes['windGust'] as num?)?.toDouble() ?? windGust,
       maxGust: (changes['maxGust'] as num?)?.toDouble() ?? maxGust,
