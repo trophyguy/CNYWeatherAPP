@@ -148,7 +148,7 @@ class HomeScreen extends StatelessWidget {
                 ),
                 const SizedBox(height: 16),
                 WindCard(
-                  weather: weatherData,
+                  weatherData: weatherData,
                 ),
                 const SizedBox(height: 16),
                 PrecipitationCard(

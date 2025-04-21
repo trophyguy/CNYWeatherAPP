@@ -19,17 +19,12 @@ class WeatherRepository {
 
   Future<WeatherData> getWeatherData() async {
     try {
-      // Try to get cached data first
-      final cachedData = await _cacheService.getCachedWeatherData();
-      if (cachedData != null) {
-        return WeatherData.fromJson(cachedData);
-      }
-
-      // If no cached data or cache is stale, fetch fresh data
+      // Always fetch fresh data first
       final response = await http.get(
         Uri.parse(_baseUrl),
         headers: {'Accept-Charset': 'utf-8'},
       );
+      
       if (response.statusCode == 200) {
         // Convert bytes to string, replacing any invalid UTF-8 sequences
         final cleanedBody = String.fromCharCodes(
@@ -40,35 +35,124 @@ class WeatherRepository {
         double aqiValue = 0.0;
         try {
           final aqiData = await _openWeatherService.getAirQuality(_stationLat, _stationLon);
-          debugPrint('AQI Data: $aqiData');
           aqiValue = aqiData['aqi']?.toDouble() ?? 0.0;
-          debugPrint('AQI Value: $aqiValue');
         } catch (e) {
           debugPrint('Warning: Failed to fetch AQI data: $e');
-          // Continue with default AQI value
         }
         
         final data = _parseTestTags(cleanedBody, aqiValue);
+        
+        // Cache the new data
         await _cacheService.cacheWeatherData(data.toJson());
+        
+        // Debug prints for key values
+        debugPrint('\n=== Fresh Data Values ===');
+        debugPrint('Humidity: ${data.humidity}');
+        debugPrint('Pressure: ${data.pressure}');
+        debugPrint('Wind Speed: ${data.windSpeed}');
+        debugPrint('Wind Direction: ${data.windDirection}');
+        
         return data;
       } else {
+        // If fresh data fetch fails, try to get cached data
+        final cachedData = await _cacheService.getCachedWeatherData();
+        if (cachedData != null) {
+          debugPrint('Using cached data due to failed fresh fetch');
+          return WeatherData.fromJson(cachedData);
+        }
         throw Exception('Failed to load weather data: ${response.statusCode}');
       }
     } catch (e) {
+      // If any error occurs, try to get cached data
+      final cachedData = await _cacheService.getCachedWeatherData();
+      if (cachedData != null) {
+        debugPrint('Using cached data due to error: $e');
+        return WeatherData.fromJson(cachedData);
+      }
       throw Exception('Error fetching weather data: $e');
     }
   }
 
-  // TODO: Implement quick update functionality
   Future<Map<String, dynamic>> getQuickUpdate() async {
-    // Temporarily return empty map until clientraw.txt implementation is complete
-    return {
-      'temperature': 0.0,
-      'humidity': 0.0,
-      'windSpeed': 0.0,
-      'windDirection': '',
-      'pressure': 0.0,
-    };
+    try {
+      final response = await http.get(
+        Uri.parse('https://cnyweather.com/clientraw.txt'),
+        headers: {'Accept-Charset': 'utf-8'},
+      );
+      
+      if (response.statusCode == 200) {
+        final cleanedBody = String.fromCharCodes(
+          response.bodyBytes.where((byte) => byte < 128)
+        );
+        
+        final parts = cleanedBody.split(' ');
+        if (parts.length >= 10) {
+          // Convert pressure from MB to inches (1 MB = 0.02953 inches)
+          final pressureMB = double.tryParse(parts[6]) ?? 0.0;
+          final pressureInches = pressureMB * 0.02953;
+          
+          // Ensure humidity is in the correct range (0-100)
+          final humidity = double.tryParse(parts[5]) ?? 0.0;
+          final normalizedHumidity = humidity.clamp(0.0, 100.0);
+          
+          return {
+            'temperature': double.tryParse(parts[4]) ?? 0.0,
+            'humidity': normalizedHumidity,
+            'windSpeed': double.tryParse(parts[1]) ?? 0.0,
+            'windDirection': parts[2],
+            'pressure': pressureInches,
+            'rainfall': double.tryParse(parts[7]) ?? 0.0,
+          };
+        }
+      }
+      
+      // If we can't get fresh data, return the last known values from cache
+      final cachedData = await _cacheService.getCachedWeatherData();
+      if (cachedData != null) {
+        final weatherData = WeatherData.fromJson(cachedData);
+        return {
+          'temperature': weatherData.temperature,
+          'humidity': weatherData.humidity,
+          'windSpeed': weatherData.windSpeed,
+          'windDirection': weatherData.windDirection,
+          'pressure': weatherData.pressure,
+          'rainfall': weatherData.dailyRain,
+        };
+      }
+      
+      // If all else fails, return zeros
+      return {
+        'temperature': 0.0,
+        'humidity': 0.0,
+        'windSpeed': 0.0,
+        'windDirection': '',
+        'pressure': 0.0,
+        'rainfall': 0.0,
+      };
+    } catch (e) {
+      debugPrint('Error in quick update: $e');
+      // Try to get cached data as fallback
+      final cachedData = await _cacheService.getCachedWeatherData();
+      if (cachedData != null) {
+        final weatherData = WeatherData.fromJson(cachedData);
+        return {
+          'temperature': weatherData.temperature,
+          'humidity': weatherData.humidity,
+          'windSpeed': weatherData.windSpeed,
+          'windDirection': weatherData.windDirection,
+          'pressure': weatherData.pressure,
+          'rainfall': weatherData.dailyRain,
+        };
+      }
+      return {
+        'temperature': 0.0,
+        'humidity': 0.0,
+        'windSpeed': 0.0,
+        'windDirection': '',
+        'pressure': 0.0,
+        'rainfall': 0.0,
+      };
+    }
   }
 
   // Map<String, dynamic> _parseQuickUpdate(String html) {
@@ -111,117 +195,40 @@ class WeatherRepository {
       variables[key] = value;
     }
     
-    // Debug: Print all variables
-    debugPrint('\nAll variables found:');
-    variables.forEach((key, value) {
-      debugPrint('$key = $value');
-    });
+    // Debug prints for humidity and pressure
+    debugPrint('\n=== Humidity and Pressure Debug ===');
+    debugPrint('Raw humidity: ${variables['humidity']}');
+    debugPrint('Raw barometer: ${variables['barometer']}');
+    debugPrint('Raw baro: ${variables['baro']}');
+    debugPrint('Raw pressure: ${variables['pressure']}');
     
-    // Debug: Print pressure and dew point values
-    debugPrint('\nPressure and Dew Point values:');
-    debugPrint('Raw barometer value: ${variables['barometer']}');
-    debugPrint('Raw dewpoint value: ${variables['dewpt']}');
+    // Clean and convert values
+    final humidity = double.tryParse(variables['humidity']?.replaceAll(RegExp(r'[^\d.-]'), '') ?? '0') ?? 0.0;
+    final pressure = double.tryParse(variables['barometer']?.replaceAll(RegExp(r'[^\d.-]'), '') ?? 
+                                   variables['baro']?.replaceAll(RegExp(r'[^\d.-]'), '') ?? 
+                                   variables['pressure']?.replaceAll(RegExp(r'[^\d.-]'), '') ?? '0') ?? 0.0;
     
-    // Debug: Print temperature-related variables
-    debugPrint('\nTemperature-related variables:');
-    variables.forEach((key, value) {
-      if (key.toLowerCase().contains('temp') || 
-          key.toLowerCase().contains('lastyear') || 
-          key.toLowerCase().contains('record') || 
-          key.toLowerCase().contains('average')) {
-        debugPrint('$key = $value');
-      }
-    });
+    debugPrint('Parsed humidity: $humidity');
+    debugPrint('Parsed pressure: $pressure');
     
-    // Debug: Print the first few lines of raw data
-    debugPrint('\nFirst few lines of raw data:');
-    final firstFewLines = html.split('\n').take(50).join('\n');
-    debugPrint(firstFewLines);
-    
-    debugPrint('Parsed values from test tags:');
-    debugPrint('Raw tempnodp value: ${variables['tempnodp']}');
-    
-    // Clean and convert temperature values
-    final tempnodp = double.tryParse(variables['tempnodp']?.replaceAll(RegExp(r'[^\d.-]'), '') ?? '0') ?? 0.0;
-    final feelsLike = double.tryParse(variables['feelslike']?.replaceAll(RegExp(r'[^\d.-]'), '') ?? '0') ?? 0.0;
-    final maxTemp = double.tryParse(variables['maxtemp']?.replaceAll(RegExp(r'[^\d.-]'), '') ?? '0') ?? 0.0;
-    final minTemp = double.tryParse(variables['mintemp']?.replaceAll(RegExp(r'[^\d.-]'), '') ?? '0') ?? 0.0;
-    final maxTempYesterday = double.tryParse(variables['maxtempyest']?.replaceAll(RegExp(r'[^\d.-]'), '') ?? '0') ?? 0.0;
-    final minTempYesterday = double.tryParse(variables['mintempyest']?.replaceAll(RegExp(r'[^\d.-]'), '') ?? '0') ?? 0.0;
-    final maxTempLastYear = double.tryParse(variables['maxtempyrago']?.replaceAll(RegExp(r'[^\d.-]'), '') ?? '0') ?? 0.0;
-    final minTempLastYear = double.tryParse(variables['mintempyrago']?.replaceAll(RegExp(r'[^\d.-]'), '') ?? '0') ?? 0.0;
-    final maxTempRecord = double.tryParse(variables['maxtemp4today']?.replaceAll(RegExp(r'[^\d.-]'), '') ?? '0') ?? 0.0;
-    final minTempRecord = double.tryParse(variables['mintemp4today']?.replaceAll(RegExp(r'[^\d.-]'), '') ?? '0') ?? 0.0;
-    final maxTempAverage = double.tryParse(variables['maxtempfordaytimeofyearfromyourdata']?.replaceAll(RegExp(r'[^\d.-]'), '') ?? '0') ?? 0.0;
-    final minTempAverage = double.tryParse(variables['mintempfordaytimeofyearfromyourdata']?.replaceAll(RegExp(r'[^\d.-]'), '') ?? '0') ?? 0.0;
-    
-    // Debug prints for all temperature values
-    debugPrint('\nDebug - Temperature Values:');
-    debugPrint('Last Year:');
-    debugPrint('  Raw maxtempyrago: ${variables['maxtempyrago']}');
-    debugPrint('  Raw mintempyrago: ${variables['mintempyrago']}');
-    debugPrint('  Parsed maxTempLastYear: $maxTempLastYear');
-    debugPrint('  Parsed minTempLastYear: $minTempLastYear');
-    
-    debugPrint('\nRecord:');
-    debugPrint('  Raw maxtemp4today: ${variables['maxtemp4today']}');
-    debugPrint('  Raw mintemp4today: ${variables['mintemp4today']}');
-    debugPrint('  Parsed maxTempRecord: $maxTempRecord');
-    debugPrint('  Parsed minTempRecord: $minTempRecord');
-    
-    debugPrint('\nAverage:');
-    debugPrint('  Raw maxtempfordaytimeofyearfromyourdata: ${variables['maxtempfordaytimeofyearfromyourdata']}');
-    debugPrint('  Raw mintempfordaytimeofyearfromyourdata: ${variables['mintempfordaytimeofyearfromyourdata']}');
-    debugPrint('  Parsed maxTempAverage: $maxTempAverage');
-    debugPrint('  Parsed minTempAverage: $minTempAverage');
-
-    debugPrint('\n=== Temperature Values ===');
-    debugPrint('Current Temperature: $tempnodp°F');
-    debugPrint('Feels Like: $feelsLike°F');
-    debugPrint('\nToday:');
-    debugPrint('  High: $maxTemp°F');
-    debugPrint('  Low: $minTemp°F');
-    debugPrint('\nYesterday:');
-    debugPrint('  High: $maxTempYesterday°F');
-    debugPrint('  Low: $minTempYesterday°F');
-    debugPrint('\nLast Year:');
-    debugPrint('  High: $maxTempLastYear°F');
-    debugPrint('  Low: $minTempLastYear°F');
-    debugPrint('\nRecords:');
-    debugPrint('  High: $maxTempRecord°F');
-    debugPrint('  Low: $minTempRecord°F');
-    debugPrint('\nAverages:');
-    debugPrint('  High: $maxTempAverage°F');
-    debugPrint('  Low: $minTempAverage°F');
-    debugPrint('========================\n');
-
-    // Debug prints for last year temperatures
-    debugPrint('\nDebug - Last Year Temperatures:');
-    debugPrint('Raw maxtempyrago: ${variables['maxtempyrago']}');
-    debugPrint('Raw mintempyrago: ${variables['mintempyrago']}');
-    debugPrint('Parsed maxTempLastYear: $maxTempLastYear');
-    debugPrint('Parsed minTempLastYear: $minTempLastYear');
-
-    final double uvIndex = double.tryParse(variables['uvindex']?.replaceAll(RegExp(r'[^\d.-]'), '') ?? '0') ?? 0.0;
-
     return WeatherData(
       lastUpdatedTime: variables['time'] ?? '',
       lastUpdatedDate: variables['date'] ?? '',
-      temperature: tempnodp,
-      tempNoDecimal: tempnodp,
-      humidity: double.tryParse(variables['humidity']?.replaceAll(RegExp(r'[^\d.-]'), '') ?? '0') ?? 0.0,
+      temperature: double.tryParse(variables['tempnodp']?.replaceAll(RegExp(r'[^\d.-]'), '') ?? '0') ?? 0.0,
+      tempNoDecimal: double.tryParse(variables['tempnodp']?.replaceAll(RegExp(r'[^\d.-]'), '') ?? '0') ?? 0.0,
+      humidity: humidity,
       dewPoint: double.tryParse(variables['dewpt']?.replaceAll(RegExp(r'[^\d.-]'), '') ?? '0') ?? 0.0,
-      maxTemp: maxTemp,
+      maxTemp: double.tryParse(variables['maxtemp']?.replaceAll(RegExp(r'[^\d.-]'), '') ?? '0') ?? 0.0,
       maxTempTime: variables['maxtemptime'] ?? '',
-      minTemp: minTemp,
+      minTemp: double.tryParse(variables['mintemp']?.replaceAll(RegExp(r'[^\d.-]'), '') ?? '0') ?? 0.0,
       minTempTime: variables['mintemptime'] ?? '',
-      maxTempLastYear: maxTempLastYear,
-      minTempLastYear: minTempLastYear,
-      maxTempRecord: maxTempRecord,
-      minTempRecord: minTempRecord,
-      maxTempAverage: maxTempAverage,
-      minTempAverage: minTempAverage,
-      feelsLike: feelsLike,
+      maxTempLastYear: double.tryParse(variables['maxtempyrago']?.replaceAll(RegExp(r'[^\d.-]'), '') ?? '0') ?? 0.0,
+      minTempLastYear: double.tryParse(variables['mintempyrago']?.replaceAll(RegExp(r'[^\d.-]'), '') ?? '0') ?? 0.0,
+      maxTempRecord: double.tryParse(variables['maxtemp4today']?.replaceAll(RegExp(r'[^\d.-]'), '') ?? '0') ?? 0.0,
+      minTempRecord: double.tryParse(variables['mintemp4today']?.replaceAll(RegExp(r'[^\d.-]'), '') ?? '0') ?? 0.0,
+      maxTempAverage: double.tryParse(variables['maxtempfordaytimeofyearfromyourdata']?.replaceAll(RegExp(r'[^\d.-]'), '') ?? '0') ?? 0.0,
+      minTempAverage: double.tryParse(variables['mintempfordaytimeofyearfromyourdata']?.replaceAll(RegExp(r'[^\d.-]'), '') ?? '0') ?? 0.0,
+      feelsLike: double.tryParse(variables['feelslike']?.replaceAll(RegExp(r'[^\d.-]'), '') ?? '0') ?? 0.0,
       heatIndex: double.tryParse(variables['heatindex']?.replaceAll(RegExp(r'[^\d.-]'), '') ?? '0') ?? 0.0,
       windChill: double.tryParse(variables['windchill']?.replaceAll(RegExp(r'[^\d.-]'), '') ?? '0') ?? 0.0,
       humidex: double.tryParse(variables['humidex']?.replaceAll(RegExp(r'[^\d.-]'), '') ?? '0') ?? 0.0,
@@ -229,16 +236,17 @@ class WeatherRepository {
       apparentSolarTemp: double.tryParse(variables['apparentsolartemp']?.replaceAll(RegExp(r'[^\d.-]'), '') ?? '0') ?? 0.0,
       tempChangeHour: double.tryParse(variables['tempchangehour']?.replaceAll(RegExp(r'[^\d.-]'), '') ?? '0') ?? 0.0,
       aqi: aqiValue,
-      windSpeed: double.tryParse(variables['windspeed']?.replaceAll(RegExp(r'[^\d.-]'), '') ?? '0') ?? 0.0,
-      windGust: double.tryParse(variables['windgust']?.replaceAll(RegExp(r'[^\d.-]'), '') ?? '0') ?? 0.0,
-      maxGust: double.tryParse(variables['maxgust']?.replaceAll(RegExp(r'[^\d.-]'), '') ?? '0') ?? 0.0,
+      windSpeed: double.tryParse(variables['avgspd']?.replaceAll(RegExp(r'[^\d.-]'), '') ?? '0') ?? 0.0,
+      windGust: double.tryParse(variables['gstspd']?.replaceAll(RegExp(r'[^\d.-]'), '') ?? '0') ?? 0.0,
+      maxGust: double.tryParse(variables['maxgst']?.replaceAll(RegExp(r'[^\d.-]'), '') ?? '0') ?? 0.0,
       maxGustTime: variables['maxgusttime'] ?? '',
-      windDirection: variables['winddirection'] ?? '',
+      windDirection: variables['dirlabel'] ?? '',
       windDirectionDegrees: int.tryParse(variables['winddirectiondegrees']?.replaceAll(RegExp(r'[^\d.-]'), '') ?? '0') ?? 0,
       avgWind10Min: double.tryParse(variables['avgwind10min']?.replaceAll(RegExp(r'[^\d.-]'), '') ?? '0') ?? 0.0,
+      monthlyHighWindGust: double.tryParse(variables['mrecordwindgust']?.replaceAll(RegExp(r'[^\d.-]'), '') ?? '0') ?? 0.0,
       beaufortScale: variables['beaufortscale'] ?? '',
       beaufortText: variables['beauforttext'] ?? '',
-      pressure: double.tryParse(variables['baro']?.replaceAll(RegExp(r'[^\d.-]'), '') ?? '0') ?? 0.0,
+      pressure: pressure,
       pressureTrend: variables['pressuretrendname'] ?? '',
       pressureTrend3Hour: variables['pressuretrend3hour'] ?? '',
       forecastText: variables['forecasttext'] ?? '',
@@ -251,7 +259,7 @@ class WeatherRepository {
       maxRainRate: double.tryParse(variables['maxrainrate']?.replaceAll(RegExp(r'[^\d.-]'), '') ?? '0') ?? 0.0,
       maxRainRateTime: variables['maxrainratetime'] ?? '',
       solarRadiation: double.tryParse(variables['solarradiation']?.replaceAll(RegExp(r'[^\d.-]'), '') ?? '0') ?? 0.0,
-      uvIndex: uvIndex,
+      uvIndex: double.tryParse(variables['VPuv']?.replaceAll(RegExp(r'[^\d.-]'), '') ?? '0') ?? 0.0,
       highSolar: double.tryParse(variables['highsolar']?.replaceAll(RegExp(r'[^\d.-]'), '') ?? '0') ?? 0.0,
       highUV: double.tryParse(variables['highuv']?.replaceAll(RegExp(r'[^\d.-]'), '') ?? '0') ?? 0.0,
       highSolarTime: variables['highsolartime'] ?? '',
@@ -266,8 +274,8 @@ class WeatherRepository {
       snowDaysThisMonth: int.tryParse(variables['snowdaysthismonth']?.replaceAll(RegExp(r'[^\d.-]'), '') ?? '0') ?? 0,
       snowDaysThisYear: int.tryParse(variables['snowdaysthisyear']?.replaceAll(RegExp(r'[^\d.-]'), '') ?? '0') ?? 0,
       advisories: [],
-      maxTempYesterday: maxTempYesterday,
-      minTempYesterday: minTempYesterday,
+      maxTempYesterday: double.tryParse(variables['maxtempyest']?.replaceAll(RegExp(r'[^\d.-]'), '') ?? '0') ?? 0.0,
+      minTempYesterday: double.tryParse(variables['mintempyest']?.replaceAll(RegExp(r'[^\d.-]'), '') ?? '0') ?? 0.0,
     );
   }
 

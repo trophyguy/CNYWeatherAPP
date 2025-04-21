@@ -2,67 +2,111 @@ import 'package:flutter/material.dart';
 import '../models/weather_data.dart';
 
 class WindCard extends StatelessWidget {
-  final WeatherData weather;
+  final WeatherData weatherData;
 
   const WindCard({
     super.key,
-    required this.weather,
+    required this.weatherData,
   });
 
-  @override
-  Widget build(BuildContext context) {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text(
-              'Wind',
-              style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-                color: Colors.white,
-              ),
-            ),
-            const SizedBox(height: 16),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                _buildWindItem(
-                  '${weather.windSpeed.round()} mph',
-                  weather.windDirection,
-                ),
-                _buildWindItem('5 mph', 'Gust'),
-                _buildWindItem('20 mph', 'Max Day'),
-                _buildWindItem('26 mph', 'Month Gust'),
-              ],
-            ),
-          ],
-        ),
-      ),
-    );
+  String _getFullDirection(String shortDirection) {
+    switch (shortDirection.toUpperCase()) {
+      case 'N': return 'North';
+      case 'NNE': return 'North Northeast';
+      case 'NE': return 'Northeast';
+      case 'ENE': return 'East Northeast';
+      case 'E': return 'East';
+      case 'ESE': return 'East Southeast';
+      case 'SE': return 'Southeast';
+      case 'SSE': return 'South Southeast';
+      case 'S': return 'South';
+      case 'SSW': return 'South Southwest';
+      case 'SW': return 'Southwest';
+      case 'WSW': return 'West Southwest';
+      case 'W': return 'West';
+      case 'WNW': return 'West Northwest';
+      case 'NW': return 'Northwest';
+      case 'NNW': return 'North Northwest';
+      default: return shortDirection;
+    }
   }
 
-  Widget _buildWindItem(String value, String label) {
+  Widget _buildWindColumn(String value, String label, {String? subLabel}) {
     return Column(
+      mainAxisSize: MainAxisSize.min,
       children: [
         Text(
           value,
           style: const TextStyle(
             fontSize: 16,
             fontWeight: FontWeight.bold,
-            color: Colors.white,
           ),
         ),
+        const SizedBox(height: 2),
         Text(
           label,
           style: TextStyle(
-            color: Colors.grey[400],
-            fontSize: 12,
+            fontSize: 10,
+            color: Colors.grey[600],
           ),
         ),
+        if (subLabel != null) ...[
+          const SizedBox(height: 1),
+          Text(
+            subLabel,
+            style: TextStyle(
+              fontSize: 10,
+              color: Colors.grey[600],
+            ),
+          ),
+        ],
       ],
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      elevation: 4,
+      margin: const EdgeInsets.all(8),
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text(
+              'Wind',
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 12),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+              children: [
+                _buildWindColumn(
+                  '${weatherData.windSpeed.round()} mph',
+                  _getFullDirection(weatherData.windDirection),
+                ),
+                _buildWindColumn(
+                  '${weatherData.windGust.round()} mph',
+                  'Gust',
+                ),
+                _buildWindColumn(
+                  '${weatherData.maxGust.round()} mph',
+                  'Today\'s High',
+                ),
+                _buildWindColumn(
+                  '${weatherData.monthlyHighWindGust.round()} mph',
+                  'Monthly High',
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
     );
   }
 } 

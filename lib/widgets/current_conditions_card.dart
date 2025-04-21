@@ -253,14 +253,17 @@ class CurrentConditionsCard extends StatelessWidget {
                   _buildDataColumn(
                     '${weatherData.humidity.toInt()}%',
                     'Humidity',
+                    description: ' ',
                   ),
                   _buildDataColumn(
                     '${weatherData.pressure.toStringAsFixed(2)}"',
                     'Pressure',
+                    description: weatherData.pressureTrend,
                   ),
                   _buildDataColumn(
                     '${weatherData.dewPoint.toInt()}°',
                     'Dew Point',
+                    description: ' ',
                   ),
                   _buildDataColumn(
                     '${weatherData.uvIndex.toInt()}',

@@ -78,6 +78,7 @@ class WeatherData {
   final String windDirection;
   final int windDirectionDegrees;
   final double avgWind10Min;
+  final double monthlyHighWindGust;
   final String beaufortScale;
   final String beaufortText;
 
@@ -155,6 +156,7 @@ class WeatherData {
     required this.windDirection,
     required this.windDirectionDegrees,
     required this.avgWind10Min,
+    required this.monthlyHighWindGust,
     required this.beaufortScale,
     required this.beaufortText,
     required this.pressure,
@@ -223,6 +225,7 @@ class WeatherData {
       windDirection: json['windDirection'] ?? '',
       windDirectionDegrees: json['windDirectionDegrees'] ?? 0,
       avgWind10Min: json['avgWind10Min'] ?? 0.0,
+      monthlyHighWindGust: json['monthlyHighWindGust'] ?? 0.0,
       beaufortScale: json['beaufortScale'] ?? '',
       beaufortText: json['beaufortText'] ?? '',
       pressure: json['pressure'] ?? 0.0,
@@ -293,6 +296,7 @@ class WeatherData {
       'windDirection': windDirection,
       'windDirectionDegrees': windDirectionDegrees,
       'avgWind10Min': avgWind10Min,
+      'monthlyHighWindGust': monthlyHighWindGust,
       'beaufortScale': beaufortScale,
       'beaufortText': beaufortText,
       'pressure': pressure,
@@ -361,6 +365,7 @@ class WeatherData {
       windDirection: changes['windDirection']?.toString() ?? windDirection,
       windDirectionDegrees: changes['windDirectionDegrees'] ?? windDirectionDegrees,
       avgWind10Min: (changes['avgWind10Min'] as num?)?.toDouble() ?? avgWind10Min,
+      monthlyHighWindGust: (changes['monthlyHighWindGust'] as num?)?.toDouble() ?? monthlyHighWindGust,
       beaufortScale: changes['beaufortScale']?.toString() ?? beaufortScale,
       beaufortText: changes['beaufortText']?.toString() ?? beaufortText,
       pressure: (changes['pressure'] as num?)?.toDouble() ?? pressure,
