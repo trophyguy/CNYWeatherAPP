@@ -1,12 +1,16 @@
 import 'dart:async';
 import 'package:flutter/foundation.dart';
 import '../models/weather_data.dart';
+import '../models/weather_alert.dart';
 import '../repositories/weather_repository.dart';
 import '../services/cache_service.dart';
+import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class WeatherService extends ChangeNotifier {
   final WeatherRepository _repository;
   final CacheService _cacheService;
+  final FlutterLocalNotificationsPlugin _notifications = FlutterLocalNotificationsPlugin();
   WeatherData? _weatherData;
   bool _isLoading = false;
   String? _error;
@@ -16,11 +20,59 @@ class WeatherService extends ChangeNotifier {
   WeatherService(this._repository, this._cacheService) {
     _init();
     _startUpdateTimer();
+    _initializeNotifications();
   }
 
   Future<void> _init() async {
     await _cacheService.init();
     await fetchWeatherData();
+  }
+
+  Future<void> _initializeNotifications() async {
+    const androidSettings = AndroidInitializationSettings('@mipmap/ic_launcher');
+    const iosSettings = DarwinInitializationSettings();
+    const initSettings = InitializationSettings(android: androidSettings, iOS: iosSettings);
+    
+    await _notifications.initialize(initSettings);
+  }
+
+  Future<void> _checkAndNotifyAlerts(List<WeatherAlert> newAlerts) async {
+    final prefs = await SharedPreferences.getInstance();
+    final notificationsEnabled = prefs.getBool('notifications_enabled') ?? false;
+    
+    if (!notificationsEnabled) return;
+
+    final oldAlerts = _weatherData?.alerts ?? [];
+    final newAlertIds = newAlerts.map((a) => '${a.event}-${a.area}-${a.effective}').toSet();
+    final oldAlertIds = oldAlerts.map((a) => '${a.event}-${a.area}-${a.effective}').toSet();
+    
+    // Find alerts that are new (not in old alerts)
+    final alertsToNotify = newAlerts.where((alert) {
+      final alertId = '${alert.event}-${alert.area}-${alert.effective}';
+      return !oldAlertIds.contains(alertId);
+    }).toList();
+
+    if (alertsToNotify.isEmpty) return;
+
+    const androidSettings = AndroidNotificationDetails(
+      'weather_alerts',
+      'Weather Alerts',
+      channelDescription: 'Notifications for weather alerts in your area',
+      importance: Importance.high,
+      priority: Priority.high,
+    );
+    const iosSettings = DarwinNotificationDetails();
+    const details = NotificationDetails(android: androidSettings, iOS: iosSettings);
+
+    for (var i = 0; i < alertsToNotify.length; i++) {
+      final alert = alertsToNotify[i];
+      await _notifications.show(
+        i,
+        '${alert.severity.toUpperCase()}: ${alert.event}',
+        '${alert.area}\n${alert.description}',
+        details,
+      );
+    }
   }
 
   WeatherData? get weatherData => _weatherData;
@@ -34,24 +86,90 @@ class WeatherService extends ChangeNotifier {
   }
 
   Future<void> fetchWeatherData() async {
-    _isLoading = true;
-    _error = null;
-    notifyListeners();
-
     try {
-      // Try to get cached data first
-      final cachedData = await _cacheService.getCachedWeatherData();
-      if (cachedData != null) {
-        _weatherData = WeatherData.fromJson(cachedData);
-        notifyListeners();
+      _isLoading = true;
+      notifyListeners();
+
+      final data = await _repository.getWeatherData();
+      
+      // Check for new alerts before updating weather data
+      if (data.alerts.isNotEmpty) {
+        await _checkAndNotifyAlerts(data.alerts);
       }
 
-      // Fetch fresh data
-      final freshData = await _repository.getWeatherData();
-      _weatherData = freshData;
-      await _cacheService.cacheWeatherData(freshData.toJson());
+      _weatherData = WeatherData(
+        lastUpdatedTime: data.lastUpdatedTime,
+        lastUpdatedDate: data.lastUpdatedDate,
+        temperature: data.temperature,
+        tempNoDecimal: data.tempNoDecimal,
+        humidity: data.humidity,
+        dewPoint: data.dewPoint,
+        maxTemp: data.maxTemp,
+        maxTempTime: data.maxTempTime,
+        minTemp: data.minTemp,
+        minTempTime: data.minTempTime,
+        maxTempLastYear: data.maxTempLastYear,
+        minTempLastYear: data.minTempLastYear,
+        maxTempRecord: data.maxTempRecord,
+        minTempRecord: data.minTempRecord,
+        maxTempAverage: data.maxTempAverage,
+        minTempAverage: data.minTempAverage,
+        feelsLike: data.feelsLike,
+        heatIndex: data.heatIndex,
+        windChill: data.windChill,
+        humidex: data.humidex,
+        apparentTemp: data.apparentTemp,
+        apparentSolarTemp: data.apparentSolarTemp,
+        tempChangeHour: data.tempChangeHour,
+        aqi: data.aqi,
+        windSpeed: data.windSpeed,
+        windGust: data.windGust,
+        maxGust: data.maxGust,
+        maxGustTime: data.maxGustTime,
+        windDirection: data.windDirection,
+        windDirectionDegrees: data.windDirectionDegrees,
+        avgWind10Min: data.avgWind10Min,
+        monthlyHighWindGust: data.monthlyHighWindGust,
+        beaufortScale: data.beaufortScale,
+        beaufortText: data.beaufortText,
+        pressure: data.pressure,
+        pressureTrend: data.pressureTrend,
+        pressureTrend3Hour: data.pressureTrend3Hour,
+        forecastText: data.forecastText,
+        dailyRain: data.dailyRain,
+        yesterdayRain: data.yesterdayRain,
+        monthlyRain: data.monthlyRain,
+        yearlyRain: data.yearlyRain,
+        daysWithNoRain: data.daysWithNoRain,
+        daysWithRain: data.daysWithRain,
+        currentRainRate: data.currentRainRate,
+        maxRainRate: data.maxRainRate,
+        maxRainRateTime: data.maxRainRateTime,
+        solarRadiation: data.solarRadiation,
+        uvIndex: data.uvIndex,
+        highSolar: data.highSolar,
+        highUV: data.highUV,
+        highSolarTime: data.highSolarTime,
+        highUVTime: data.highUVTime,
+        burnTime: data.burnTime,
+        snowSeason: data.snowSeason,
+        snowMonth: data.snowMonth,
+        snowToday: data.snowToday,
+        snowYesterday: data.snowYesterday,
+        snowHeight: data.snowHeight,
+        snowDepth: data.snowDepth,
+        snowDaysThisMonth: data.snowDaysThisMonth,
+        snowDaysThisYear: data.snowDaysThisYear,
+        advisories: data.advisories,
+        maxTempYesterday: data.maxTempYesterday,
+        minTempYesterday: data.minTempYesterday,
+        forecast: data.forecast,
+        alerts: data.alerts,
+      );
+
+      _error = null;
     } catch (e) {
-      _error = 'Failed to fetch weather data: $e';
+      _error = e.toString();
     } finally {
       _isLoading = false;
       notifyListeners();

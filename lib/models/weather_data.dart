@@ -1,5 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'dart:convert';
+import 'forecast_data.dart';
+import 'weather_alert.dart';
 
 class WeatherAdvisory {
   final String type;
@@ -90,6 +92,7 @@ class WeatherData {
 
   // Rain
   final double dailyRain;
+  final double yesterdayRain;
   final double monthlyRain;
   final double yearlyRain;
   final int daysWithNoRain;
@@ -123,6 +126,12 @@ class WeatherData {
   // New fields
   final double maxTempYesterday;
   final double minTempYesterday;
+
+  // Forecast data
+  final List<ForecastPeriod> forecast;
+
+  // Alerts
+  final List<WeatherAlert> alerts;
 
   WeatherData({
     required this.lastUpdatedTime,
@@ -164,6 +173,7 @@ class WeatherData {
     required this.pressureTrend3Hour,
     required this.forecastText,
     required this.dailyRain,
+    required this.yesterdayRain,
     required this.monthlyRain,
     required this.yearlyRain,
     required this.daysWithNoRain,
@@ -189,10 +199,33 @@ class WeatherData {
     required this.advisories,
     required this.maxTempYesterday,
     required this.minTempYesterday,
+    required this.forecast,
+    required this.alerts,
   });
 
   factory WeatherData.fromJson(Map<String, dynamic> json) {
     debugPrint('JSON tempNoDecimal: ${json['tempNoDecimal']}');
+    List<WeatherAdvisory> advisoryList = [];
+    if (json['advisories'] != null) {
+      advisoryList = (json['advisories'] as List)
+          .map((advisory) => WeatherAdvisory.fromJson(advisory))
+          .toList();
+    }
+
+    List<ForecastPeriod> forecastList = [];
+    if (json['forecast'] != null) {
+      forecastList = (json['forecast'] as List)
+          .map((period) => ForecastPeriod.fromJson(period))
+          .toList();
+    }
+
+    List<WeatherAlert> alertList = [];
+    if (json['alerts'] != null) {
+      alertList = (json['alerts'] as List)
+          .map((alert) => WeatherAlert.fromJson(alert))
+          .toList();
+    }
+
     return WeatherData(
       lastUpdatedTime: json['lastUpdatedTime'] ?? '',
       lastUpdatedDate: json['lastUpdatedDate'] ?? '',
@@ -233,6 +266,7 @@ class WeatherData {
       pressureTrend3Hour: json['pressureTrend3Hour'] ?? '',
       forecastText: json['forecastText'] ?? '',
       dailyRain: json['dailyRain'] ?? 0.0,
+      yesterdayRain: json['yesterdayRain'] ?? 0.0,
       monthlyRain: json['monthlyRain'] ?? 0.0,
       yearlyRain: json['yearlyRain'] ?? 0.0,
       daysWithNoRain: json['daysWithNoRain'] ?? 0,
@@ -255,11 +289,11 @@ class WeatherData {
       snowDepth: json['snowDepth'] ?? 0.0,
       snowDaysThisMonth: json['snowDaysThisMonth'] ?? 0,
       snowDaysThisYear: json['snowDaysThisYear'] ?? 0,
-      advisories: (json['advisories'] as List<dynamic>?)
-          ?.map((e) => WeatherAdvisory.fromJson(e))
-          .toList() ?? [],
-      maxTempYesterday: json['maxTempYesterday'] ?? 0.0,
-      minTempYesterday: json['minTempYesterday'] ?? 0.0,
+      advisories: advisoryList,
+      maxTempYesterday: (json['maxTempYesterday'] ?? 0.0).toDouble(),
+      minTempYesterday: (json['minTempYesterday'] ?? 0.0).toDouble(),
+      forecast: forecastList,
+      alerts: alertList,
     );
   }
 
@@ -304,6 +338,7 @@ class WeatherData {
       'pressureTrend3Hour': pressureTrend3Hour,
       'forecastText': forecastText,
       'dailyRain': dailyRain,
+      'yesterdayRain': yesterdayRain,
       'monthlyRain': monthlyRain,
       'yearlyRain': yearlyRain,
       'daysWithNoRain': daysWithNoRain,
@@ -326,9 +361,11 @@ class WeatherData {
       'snowDepth': snowDepth,
       'snowDaysThisMonth': snowDaysThisMonth,
       'snowDaysThisYear': snowDaysThisYear,
-      'advisories': advisories.map((e) => e.toJson()).toList(),
+      'advisories': advisories.map((advisory) => advisory.toJson()).toList(),
       'maxTempYesterday': maxTempYesterday,
       'minTempYesterday': minTempYesterday,
+      'forecast': forecast.map((period) => period.toJson()).toList(),
+      'alerts': alerts.map((alert) => alert.toJson()).toList(),
     };
   }
 
@@ -373,6 +410,7 @@ class WeatherData {
       pressureTrend3Hour: changes['pressureTrend3Hour']?.toString() ?? pressureTrend3Hour,
       forecastText: changes['forecastText']?.toString() ?? forecastText,
       dailyRain: (changes['dailyRain'] as num?)?.toDouble() ?? dailyRain,
+      yesterdayRain: (changes['yesterdayRain'] as num?)?.toDouble() ?? yesterdayRain,
       monthlyRain: (changes['monthlyRain'] as num?)?.toDouble() ?? monthlyRain,
       yearlyRain: (changes['yearlyRain'] as num?)?.toDouble() ?? yearlyRain,
       daysWithNoRain: changes['daysWithNoRain'] ?? daysWithNoRain,
@@ -400,6 +438,12 @@ class WeatherData {
           : advisories,
       maxTempYesterday: (changes['maxTempYesterday'] as num?)?.toDouble() ?? maxTempYesterday,
       minTempYesterday: (changes['minTempYesterday'] as num?)?.toDouble() ?? minTempYesterday,
+      forecast: changes['forecast'] != null 
+          ? _parseForecast(changes['forecast'].toString())
+          : forecast,
+      alerts: changes['alerts'] != null 
+          ? _parseAlerts(changes['alerts'].toString())
+          : alerts,
     );
   }
 
@@ -415,6 +459,38 @@ class WeatherData {
           .toList();
     } catch (e) {
       debugPrint('Error parsing advisories: $e');
+      return [];
+    }
+  }
+
+  static List<ForecastPeriod> _parseForecast(String? forecastJson) {
+    if (forecastJson == null || forecastJson.isEmpty) {
+      return [];
+    }
+
+    try {
+      final List<dynamic> jsonList = json.decode(forecastJson) as List;
+      return jsonList
+          .map((json) => ForecastPeriod.fromJson(json as Map<String, dynamic>))
+          .toList();
+    } catch (e) {
+      debugPrint('Error parsing forecast: $e');
+      return [];
+    }
+  }
+
+  static List<WeatherAlert> _parseAlerts(String? alertsJson) {
+    if (alertsJson == null || alertsJson.isEmpty) {
+      return [];
+    }
+
+    try {
+      final List<dynamic> jsonList = json.decode(alertsJson) as List;
+      return jsonList
+          .map((json) => WeatherAlert.fromJson(json as Map<String, dynamic>))
+          .toList();
+    } catch (e) {
+      debugPrint('Error parsing alerts: $e');
       return [];
     }
   }

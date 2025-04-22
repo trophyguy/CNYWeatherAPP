@@ -29,10 +29,10 @@ class PrecipitationCard extends StatelessWidget {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                _buildPrecipItem('0.11"', 'Today'),
-                _buildPrecipItem('0.44"', 'Yesterday'),
-                _buildPrecipItem('0.83"', 'Month'),
-                _buildPrecipItem('10.30"', 'Year'),
+                _buildPrecipItem('${weather.dailyRain.toStringAsFixed(2)}"', 'Today'),
+                _buildPrecipItem('${weather.yesterdayRain.toStringAsFixed(2)}"', 'Yesterday'),
+                _buildPrecipItem('${weather.monthlyRain.toStringAsFixed(2)}"', 'Month'),
+                _buildPrecipItem('${weather.yearlyRain.toStringAsFixed(2)}"', 'Year'),
               ],
             ),
           ],

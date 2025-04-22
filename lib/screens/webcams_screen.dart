@@ -7,10 +7,10 @@ class WebcamsScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Webcams'),
+        title: const Text('Weather Webcams'),
       ),
       body: const Center(
-        child: Text('Webcams screen coming soon'),
+        child: Text('Webcams Screen - Coming Soon'),
       ),
     );
   }

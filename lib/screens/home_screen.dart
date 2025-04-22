@@ -7,6 +7,8 @@ import '../widgets/wind_card.dart';
 import '../widgets/precipitation_card.dart';
 import '../widgets/forecast_card.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'main_navigation_screen.dart';
+import 'settings_screen.dart';
 
 class HomeScreen extends StatelessWidget {
   const HomeScreen({Key? key}) : super(key: key);
@@ -33,6 +35,16 @@ class HomeScreen extends StatelessWidget {
           },
         ),
         actions: [
+          IconButton(
+            icon: const Icon(Icons.settings),
+            onPressed: () {
+              Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (context) => const SettingsScreen(),
+                ),
+              );
+            },
+          ),
           IconButton(
             icon: const Icon(Icons.refresh),
             onPressed: () async {
@@ -93,7 +105,7 @@ class HomeScreen extends StatelessWidget {
             child: ListView(
               padding: const EdgeInsets.all(16.0),
               children: [
-                if (weatherData.advisories.isEmpty)
+                if (weatherData.alerts.isEmpty)
                   Card(
                     color: Colors.green.shade700,
                     child: const Padding(
@@ -114,31 +126,42 @@ class HomeScreen extends StatelessWidget {
                     ),
                   )
                 else
-                  Card(
-                    color: Colors.red.shade700,
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 12.0, horizontal: 16.0),
-                      child: Row(
-                        children: [
-                          const Icon(Icons.warning, color: Colors.white),
-                          const SizedBox(width: 8),
-                          Text(
-                            '${weatherData.advisories.length} Active Weather ${weatherData.advisories.length == 1 ? 'Advisory' : 'Advisories'}',
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 16,
+                  InkWell(
+                    onTap: () {
+                      Navigator.of(context).push(
+                        MaterialPageRoute(
+                          builder: (context) => const MainNavigationScreen(initialIndex: 3),
+                        ),
+                      );
+                    },
+                    child: Card(
+                      color: Colors.red.shade700,
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 12.0, horizontal: 16.0),
+                        child: Row(
+                          children: [
+                            const Icon(Icons.warning, color: Colors.white),
+                            const SizedBox(width: 8),
+                            Text(
+                              '${weatherData.alerts.length} Active Advisories',
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                              ),
                             ),
-                          ),
-                          const Spacer(),
-                          const Text(
-                            'View',
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontSize: 16,
+                            const Spacer(),
+                            const Text(
+                              'View',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 16,
+                                decoration: TextDecoration.underline,
+                              ),
                             ),
-                          ),
-                          const Icon(Icons.chevron_right, color: Colors.white),
-                        ],
+                            const Icon(Icons.chevron_right, color: Colors.white),
+                          ],
+                        ),
                       ),
                     ),
                   ),

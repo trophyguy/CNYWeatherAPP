@@ -2,20 +2,25 @@ import 'dart:convert';
 import 'dart:math';
 import 'package:http/http.dart' as http;
 import '../models/weather_data.dart';
+import '../models/forecast_data.dart';
+import '../models/weather_alert.dart';
 import '../services/cache_service.dart';
 import '../services/openweather_service.dart';
+import '../services/nws_service.dart';
 import 'package:flutter/foundation.dart';
 
 class WeatherRepository {
   final CacheService _cacheService;
   final OpenWeatherService _openWeatherService;
+  final NWSService _nwsService;
   static const String _testTagsUrl = 'https://cnyweather.com/testtags.php?sce=view';
   // static const String _clientRawUrl = 'https://cnyweather.com/clientraw.txt';
   static const double _stationLat = 43.2105; // Rome, NY latitude
   static const double _stationLon = -75.4557; // Rome, NY longitude
   static const String _baseUrl = 'https://cnyweather.com/testtags.php?sce=view';
 
-  WeatherRepository(this._cacheService, this._openWeatherService);
+  WeatherRepository(this._cacheService, this._openWeatherService) 
+      : _nwsService = NWSService();
 
   Future<WeatherData> getWeatherData() async {
     try {
@@ -39,20 +44,110 @@ class WeatherRepository {
         } catch (e) {
           debugPrint('Warning: Failed to fetch AQI data: $e');
         }
+
+        // Get forecast data from NWS
+        List<ForecastPeriod> forecastData = [];
+        try {
+          forecastData = await _nwsService.getForecast();
+          debugPrint('Successfully fetched forecast data: ${forecastData.length} periods');
+        } catch (e) {
+          debugPrint('Warning: Failed to fetch forecast data: $e');
+        }
         
         final data = _parseTestTags(cleanedBody, aqiValue);
         
+        // Get alerts from NWS
+        List<WeatherAlert> alerts = [];
+        try {
+          alerts = await _nwsService.getAlerts();
+          debugPrint('Successfully fetched alerts: ${alerts.length} alerts');
+        } catch (e) {
+          debugPrint('Warning: Failed to fetch alerts: $e');
+        }
+        
+        // Create a new WeatherData object with the forecast data and alerts
+        final weatherData = WeatherData(
+          lastUpdatedTime: data.lastUpdatedTime,
+          lastUpdatedDate: data.lastUpdatedDate,
+          temperature: data.temperature,
+          tempNoDecimal: data.tempNoDecimal,
+          humidity: data.humidity,
+          dewPoint: data.dewPoint,
+          maxTemp: data.maxTemp,
+          maxTempTime: data.maxTempTime,
+          minTemp: data.minTemp,
+          minTempTime: data.minTempTime,
+          maxTempLastYear: data.maxTempLastYear,
+          minTempLastYear: data.minTempLastYear,
+          maxTempRecord: data.maxTempRecord,
+          minTempRecord: data.minTempRecord,
+          maxTempAverage: data.maxTempAverage,
+          minTempAverage: data.minTempAverage,
+          feelsLike: data.feelsLike,
+          heatIndex: data.heatIndex,
+          windChill: data.windChill,
+          humidex: data.humidex,
+          apparentTemp: data.apparentTemp,
+          apparentSolarTemp: data.apparentSolarTemp,
+          tempChangeHour: data.tempChangeHour,
+          aqi: data.aqi,
+          windSpeed: data.windSpeed,
+          windGust: data.windGust,
+          maxGust: data.maxGust,
+          maxGustTime: data.maxGustTime,
+          windDirection: data.windDirection,
+          windDirectionDegrees: data.windDirectionDegrees,
+          avgWind10Min: data.avgWind10Min,
+          monthlyHighWindGust: data.monthlyHighWindGust,
+          beaufortScale: data.beaufortScale,
+          beaufortText: data.beaufortText,
+          pressure: data.pressure,
+          pressureTrend: data.pressureTrend,
+          pressureTrend3Hour: data.pressureTrend3Hour,
+          forecastText: data.forecastText,
+          dailyRain: data.dailyRain,
+          yesterdayRain: data.yesterdayRain,
+          monthlyRain: data.monthlyRain,
+          yearlyRain: data.yearlyRain,
+          daysWithNoRain: data.daysWithNoRain,
+          daysWithRain: data.daysWithRain,
+          currentRainRate: data.currentRainRate,
+          maxRainRate: data.maxRainRate,
+          maxRainRateTime: data.maxRainRateTime,
+          solarRadiation: data.solarRadiation,
+          uvIndex: data.uvIndex,
+          highSolar: data.highSolar,
+          highUV: data.highUV,
+          highSolarTime: data.highSolarTime,
+          highUVTime: data.highUVTime,
+          burnTime: data.burnTime,
+          snowSeason: data.snowSeason,
+          snowMonth: data.snowMonth,
+          snowToday: data.snowToday,
+          snowYesterday: data.snowYesterday,
+          snowHeight: data.snowHeight,
+          snowDepth: data.snowDepth,
+          snowDaysThisMonth: data.snowDaysThisMonth,
+          snowDaysThisYear: data.snowDaysThisYear,
+          advisories: data.advisories,
+          maxTempYesterday: data.maxTempYesterday,
+          minTempYesterday: data.minTempYesterday,
+          forecast: forecastData,
+          alerts: alerts,
+        );
+        
         // Cache the new data
-        await _cacheService.cacheWeatherData(data.toJson());
+        await _cacheService.cacheWeatherData(weatherData.toJson());
         
         // Debug prints for key values
         debugPrint('\n=== Fresh Data Values ===');
-        debugPrint('Humidity: ${data.humidity}');
-        debugPrint('Pressure: ${data.pressure}');
-        debugPrint('Wind Speed: ${data.windSpeed}');
-        debugPrint('Wind Direction: ${data.windDirection}');
+        debugPrint('Humidity: ${weatherData.humidity}');
+        debugPrint('Pressure: ${weatherData.pressure}');
+        debugPrint('Wind Speed: ${weatherData.windSpeed}');
+        debugPrint('Wind Direction: ${weatherData.windDirection}');
+        debugPrint('Forecast Periods: ${weatherData.forecast.length}');
         
-        return data;
+        return weatherData;
       } else {
         // If fresh data fetch fails, try to get cached data
         final cachedData = await _cacheService.getCachedWeatherData();
@@ -250,9 +345,10 @@ class WeatherRepository {
       pressureTrend: variables['pressuretrendname'] ?? '',
       pressureTrend3Hour: variables['pressuretrend3hour'] ?? '',
       forecastText: variables['forecasttext'] ?? '',
-      dailyRain: double.tryParse(variables['dailyrain']?.replaceAll(RegExp(r'[^\d.-]'), '') ?? '0') ?? 0.0,
-      monthlyRain: double.tryParse(variables['monthlyrain']?.replaceAll(RegExp(r'[^\d.-]'), '') ?? '0') ?? 0.0,
-      yearlyRain: double.tryParse(variables['yearlyrain']?.replaceAll(RegExp(r'[^\d.-]'), '') ?? '0') ?? 0.0,
+      dailyRain: double.tryParse(variables['dayrn']?.replaceAll(RegExp(r'[^\d.-]'), '') ?? '0') ?? 0.0,
+      yesterdayRain: double.tryParse(variables['yesterdayrain']?.replaceAll(RegExp(r'[^\d.-]'), '') ?? '0') ?? 0.0,
+      monthlyRain: double.tryParse(variables['monthrn']?.replaceAll(RegExp(r'[^\d.-]'), '') ?? '0') ?? 0.0,
+      yearlyRain: double.tryParse(variables['yearrn']?.replaceAll(RegExp(r'[^\d.-]'), '') ?? '0') ?? 0.0,
       daysWithNoRain: int.tryParse(variables['dayswithnorain']?.replaceAll(RegExp(r'[^\d.-]'), '') ?? '0') ?? 0,
       daysWithRain: int.tryParse(variables['dayswithrain']?.replaceAll(RegExp(r'[^\d.-]'), '') ?? '0') ?? 0,
       currentRainRate: double.tryParse(variables['currentrainrate']?.replaceAll(RegExp(r'[^\d.-]'), '') ?? '0') ?? 0.0,
@@ -276,6 +372,8 @@ class WeatherRepository {
       advisories: [],
       maxTempYesterday: double.tryParse(variables['maxtempyest']?.replaceAll(RegExp(r'[^\d.-]'), '') ?? '0') ?? 0.0,
       minTempYesterday: double.tryParse(variables['mintempyest']?.replaceAll(RegExp(r'[^\d.-]'), '') ?? '0') ?? 0.0,
+      forecast: [],
+      alerts: [],
     );
   }
 
