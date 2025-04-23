@@ -100,6 +100,9 @@ class WeatherService extends ChangeNotifier {
       _weatherData = WeatherData(
         lastUpdatedTime: data.lastUpdatedTime,
         lastUpdatedDate: data.lastUpdatedDate,
+        isNight: data.isNight,
+        condition: data.condition,
+        iconName: data.iconName,
         temperature: data.temperature,
         tempNoDecimal: data.tempNoDecimal,
         humidity: data.humidity,
@@ -165,6 +168,14 @@ class WeatherService extends ChangeNotifier {
         minTempYesterday: data.minTempYesterday,
         forecast: data.forecast,
         alerts: data.alerts,
+        sunrise: data.sunrise,
+        sunset: data.sunset,
+        daylightChange: data.daylightChange,
+        possibleDaylight: data.possibleDaylight,
+        moonrise: data.moonrise,
+        moonset: data.moonset,
+        moonPhase: data.moonPhase,
+        moonPhaseName: data.moonPhaseName,
       );
 
       _error = null;

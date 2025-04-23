@@ -40,6 +40,7 @@ dependencies:
   shared_preferences: ^2.2.0
   timeago: ^3.5.0
   flutter_local_notifications: ^19.1.0
+  webview_flutter: ^4.4.2
 
 dev_dependencies:
   flutter_test:
@@ -99,6 +100,10 @@ flutter:
   assets:
     - assets/icons/
     - assets/weather_icons/
+    - assets/weather_icons/sct.png
+    - assets/weather_icons/nsct.png
+    - assets/weather_icons/few.png
+    - assets/weather_icons/nfew.png
 
 flutter_icons:
   android: "launcher_icon"

@@ -32,6 +32,15 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
   Widget build(BuildContext context) {
     return Consumer<WeatherService>(
       builder: (context, weatherService, child) {
+        // Show loading indicator if weather data is null
+        if (weatherService.weatherData == null) {
+          return const Scaffold(
+            body: Center(
+              child: CircularProgressIndicator(),
+            ),
+          );
+        }
+
         final List<Widget> screens = [
           const HomeScreen(),
           const RadarScreen(),

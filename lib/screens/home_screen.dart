@@ -6,6 +6,7 @@ import '../widgets/current_conditions_card.dart';
 import '../widgets/wind_card.dart';
 import '../widgets/precipitation_card.dart';
 import '../widgets/forecast_card.dart';
+import '../widgets/sun_moon_card.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'main_navigation_screen.dart';
 import 'settings_screen.dart';
@@ -179,6 +180,10 @@ class HomeScreen extends StatelessWidget {
                 ),
                 const SizedBox(height: 16),
                 ForecastCard(
+                  weatherData: weatherData,
+                ),
+                const SizedBox(height: 16),
+                SunMoonCard(
                   weatherData: weatherData,
                 ),
               ],

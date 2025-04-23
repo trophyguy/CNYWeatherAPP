@@ -110,39 +110,52 @@ class CurrentConditionsCard extends StatelessWidget {
 
     final isAQI = label.toLowerCase().contains('aqi');
     final isUV = label.toLowerCase().contains('uv');
-    final aqiValue = isAQI ? double.tryParse(value) : null;
-    final uvValue = isUV ? double.tryParse(value) : null;
-    final effectiveValueColor = isAQI && aqiValue != null ? getAQIColor(aqiValue) : 
-                              isUV && uvValue != null ? getUVColor(uvValue) : valueColor;
-    final effectiveDescription = isAQI && aqiValue != null ? getAQIDescription(aqiValue) : 
-                               isUV && uvValue != null ? getUVDescription(uvValue) : description;
+    final numValue = isAQI || isUV ? double.tryParse(value.replaceAll(RegExp(r'[^\d.]'), '')) : null;
+    
+    Color? effectiveValueColor;
+    String? effectiveDescription;
+    
+    if (isAQI && numValue != null) {
+      effectiveValueColor = getAQIColor(numValue);
+      effectiveDescription = getAQIDescription(numValue);
+    } else if (isUV && numValue != null) {
+      effectiveValueColor = getUVColor(numValue);
+      effectiveDescription = getUVDescription(numValue);
+    } else {
+      effectiveValueColor = valueColor;
+      effectiveDescription = description;
+    }
 
-    return Column(
-      children: [
-        Text(
-          value,
-          style: TextStyle(
-            fontSize: 16,
-            fontWeight: FontWeight.bold,
-            color: effectiveValueColor,
-          ),
-        ),
-        const SizedBox(height: 2),
-        Text(
-          label,
-          style: const TextStyle(fontSize: 12),
-        ),
-        if (effectiveDescription != null) ...[
-          const SizedBox(height: 2),
+    return Container(
+      height: 65,  // Fixed height for alignment
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.start,  // Align to top
+        children: [
           Text(
-            effectiveDescription,
+            value,
             style: TextStyle(
-              fontSize: 10,
+              fontSize: 16,
+              fontWeight: FontWeight.bold,
               color: effectiveValueColor,
             ),
           ),
+          const SizedBox(height: 2),
+          Text(
+            label,
+            style: const TextStyle(fontSize: 12),
+          ),
+          if (effectiveDescription != null) ...[
+            const SizedBox(height: 2),
+            Text(
+              effectiveDescription,
+              style: TextStyle(
+                fontSize: 10,
+                color: effectiveValueColor,
+              ),
+            ),
+          ],
         ],
-      ],
+      ),
     );
   }
 
@@ -206,12 +219,33 @@ class CurrentConditionsCard extends StatelessWidget {
                       ),
                     ],
                   ),
-                  const Padding(
-                    padding: EdgeInsets.only(right: 16.0),
-                    child: Icon(
-                      Icons.cloud,
-                      size: 64,
-                      color: Colors.white70,
+                  Padding(
+                    padding: const EdgeInsets.only(right: 16.0),
+                    child: Column(
+                      children: [
+                        Image.asset(
+                          'assets/weather_icons/${weatherData.isNight ? "n" : ""}${weatherData.iconName}.png',
+                          width: 64,
+                          height: 64,
+                          errorBuilder: (context, error, stackTrace) {
+                            debugPrint('Error loading icon: ${weatherData.iconName}');
+                            return const Icon(
+                              Icons.error_outline,
+                              color: Colors.red,
+                              size: 64,
+                            );
+                          },
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          weatherData.condition,
+                          style: const TextStyle(
+                            fontSize: 14,
+                            color: Colors.grey,
+                          ),
+                          textAlign: TextAlign.center,
+                        ),
+                      ],
                     ),
                   ),
                 ],
@@ -247,35 +281,43 @@ class CurrentConditionsCard extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: 24),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                children: [
-                  _buildDataColumn(
-                    '${weatherData.humidity.toInt()}%',
-                    'Humidity',
-                    description: ' ',
-                  ),
-                  _buildDataColumn(
-                    '${weatherData.pressure.toStringAsFixed(2)}"',
-                    'Pressure',
-                    description: weatherData.pressureTrend,
-                  ),
-                  _buildDataColumn(
-                    '${weatherData.dewPoint.toInt()}°',
-                    'Dew Point',
-                    description: ' ',
-                  ),
-                  _buildDataColumn(
-                    '${weatherData.uvIndex.toInt()}',
-                    'UV Index',
-                  ),
-                  _buildDataColumn(
-                    '${weatherData.aqi.toInt()}',
-                    'AQI',
-                    valueColor: _getAQIColor(weatherData.aqi),
-                    description: _getAQIDescription(weatherData.aqi),
-                  ),
-                ],
+              LayoutBuilder(
+                builder: (context, constraints) {
+                  return SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    child: Container(
+                      width: constraints.maxWidth,
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                        children: [
+                          _buildDataColumn(
+                            '${weatherData.pressure.toStringAsFixed(2)}',
+                            'Pressure',
+                            description: weatherData.pressureTrend,
+                          ),
+                          _buildDataColumn(
+                            '${weatherData.dewPoint.toStringAsFixed(0)}°',
+                            'Dew Point',
+                          ),
+                          _buildDataColumn(
+                            '${weatherData.humidity.toStringAsFixed(0)}%',
+                            'Humidity',
+                          ),
+                          _buildDataColumn(
+                            '${weatherData.uvIndex.toInt()}',
+                            'UV',
+                          ),
+                          _buildDataColumn(
+                            '${weatherData.aqi.toStringAsFixed(0)}',
+                            'AQI',
+                            valueColor: _getAQIColor(weatherData.aqi),
+                            description: _getAQIDescription(weatherData.aqi),
+                          ),
+                        ],
+                      ),
+                    ),
+                  );
+                },
               ),
             ],
           ),

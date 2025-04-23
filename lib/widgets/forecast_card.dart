@@ -10,7 +10,12 @@ class ForecastCard extends StatelessWidget {
   const ForecastCard({super.key, required this.weatherData});
 
   Widget _buildForecastPeriod(ForecastPeriod period) {
-    String iconPath = 'assets/weather_icons/${period.isNight ? "n" : ""}${period.iconName}.png';
+    String iconPath = 'assets/weather_icons/${period.iconName}.png';
+    debugPrint('Building forecast period:');
+    debugPrint('  Condition: ${period.condition}');
+    debugPrint('  Is Night: ${period.isNight}');
+    debugPrint('  Icon Name: ${period.iconName}');
+    debugPrint('  Full Icon Path: $iconPath');
     
     // Split condition into two lines if it contains a space
     List<String> conditionParts = period.condition.split(' ');
@@ -19,10 +24,10 @@ class ForecastCard extends StatelessWidget {
     
     return Expanded(
       child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
+        mainAxisAlignment: MainAxisAlignment.start,
         children: [
           Text(
-            period.isNight ? 'Tonight' : 'Today',
+            period.shortName,
             style: const TextStyle(
               fontSize: 14,
               color: Colors.white,
@@ -33,27 +38,26 @@ class ForecastCard extends StatelessWidget {
             iconPath,
             width: 48,
             height: 48,
+            errorBuilder: (context, error, stackTrace) {
+              debugPrint('Error loading icon: $iconPath');
+              debugPrint('Error details: $error');
+              return const Icon(
+                Icons.error_outline,
+                color: Colors.red,
+                size: 48,
+              );
+            },
           ),
           const SizedBox(height: 8),
-          Column(
-            children: [
-              Text(
-                firstLine,
-                style: const TextStyle(
-                  fontSize: 12,
-                  color: Colors.white,
-                ),
-                textAlign: TextAlign.center,
-              ),
-              Text(
-                secondLine.isNotEmpty ? secondLine : ' ',
-                style: const TextStyle(
-                  fontSize: 12,
-                  color: Colors.white,
-                ),
-                textAlign: TextAlign.center,
-              ),
-            ],
+          Text(
+            period.condition,
+            style: const TextStyle(
+              fontSize: 12,
+              color: Colors.white,
+            ),
+            textAlign: TextAlign.center,
+            maxLines: 3,
+            overflow: TextOverflow.ellipsis,
           ),
           const SizedBox(height: 4),
           Text(

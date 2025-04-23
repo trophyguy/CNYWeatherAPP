@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../models/forecast_data.dart';
+import 'package:intl/intl.dart';
 
 class ForecastScreen extends StatelessWidget {
   final List<ForecastPeriod> forecast;
@@ -10,7 +11,12 @@ class ForecastScreen extends StatelessWidget {
   });
 
   Widget _buildForecastPeriod(ForecastPeriod period) {
-    String iconPath = 'assets/weather_icons/${period.isNight ? "n" : ""}${period.iconName}.png';
+    String iconPath = 'assets/weather_icons/${period.iconName}.png';
+    debugPrint('Building forecast period:');
+    debugPrint('  Condition: ${period.condition}');
+    debugPrint('  Is Night: ${period.isNight}');
+    debugPrint('  Icon Name: ${period.iconName}');
+    debugPrint('  Full Icon Path: $iconPath');
     
     return Card(
       margin: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
@@ -42,6 +48,15 @@ class ForecastScreen extends StatelessWidget {
                   iconPath,
                   width: 64,
                   height: 64,
+                  errorBuilder: (context, error, stackTrace) {
+                    debugPrint('Error loading icon: $iconPath');
+                    debugPrint('Error details: $error');
+                    return const Icon(
+                      Icons.error_outline,
+                      color: Colors.red,
+                      size: 64,
+                    );
+                  },
                 ),
                 const SizedBox(width: 16),
                 Expanded(

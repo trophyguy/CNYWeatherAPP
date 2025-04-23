@@ -106,34 +106,99 @@ class NWSService {
       'Slight Chance Snow Showers': 'Chance Snow',
       'Chance Snow Showers': 'Chance Snow',
       'Snow Showers Likely': 'Snow Likely',
-      'Partly Sunny': 'Partly Sunny',
-      'Mostly Sunny': 'Mostly Sunny',
+      'Partly Sunny': 'Partly Cloudy',
+      'Mostly Sunny': 'Partly Cloudy',
       'Partly Cloudy': 'Partly Cloudy',
       'Mostly Cloudy': 'Mostly Cloudy',
+      'Clear': 'Clear',
+      'Sunny': 'Clear',
       // Add more mappings as needed
     };
 
-    return simplifications[forecast] ?? forecast;
+    // Get the simplified version for display
+    final simplified = simplifications[forecast] ?? forecast;
+    debugPrint('Original forecast: $forecast, Simplified: $simplified');
+    return simplified;
   }
 
   String _getIconName(String forecast, bool isNight) {
-    // Map forecast conditions to icon names
-    final lowerForecast = forecast.toLowerCase();
-    
-    if (lowerForecast.contains('snow')) return 'sn';
-    if (lowerForecast.contains('rain')) return 'ra';
-    if (lowerForecast.contains('thunderstorm')) return 'tsra';
-    if (lowerForecast.contains('cloudy')) {
-      if (lowerForecast.startsWith('partly')) return 'sct';
-      if (lowerForecast.startsWith('mostly')) return 'bkn';
-      return 'ovc';
+    final forecastLower = forecast.toLowerCase();
+    print('Getting icon for forecast: $forecastLower (isNight: $isNight)');
+
+    // Fair/Clear conditions
+    if (forecastLower.contains('fair') || 
+        forecastLower.contains('clear') ||
+        forecastLower.contains('sunny')) {
+      return isNight ? 'nskc' : 'skc';
     }
-    if (lowerForecast.contains('sunny')) {
-      if (lowerForecast.startsWith('partly')) return 'sct';
-      if (lowerForecast.startsWith('mostly')) return 'few';
-      return 'skc';
+
+    // A Few Clouds
+    if (forecastLower.contains('few clouds') || 
+        forecastLower.contains('mostly clear') ||
+        forecastLower.contains('mostly sunny')) {
+      return isNight ? 'nfew' : 'few';
     }
-    return 'skc'; // Default to clear sky
+
+    // Partly Cloudy
+    if (forecastLower.contains('partly cloudy') || 
+        forecastLower.contains('partly sunny')) {
+      return isNight ? 'nsct' : 'sct';
+    }
+
+    // Mostly Cloudy
+    if (forecastLower.contains('mostly cloudy')) {
+      return isNight ? 'nbkn' : 'bkn';
+    }
+
+    // Overcast
+    if (forecastLower.contains('overcast') || 
+        forecastLower.contains('cloudy')) {
+      return isNight ? 'novc' : 'ovc';
+    }
+
+    // Snow conditions
+    if (forecastLower.contains('snow')) {
+      return isNight ? 'nsn' : 'sn';
+    }
+
+    // Rain conditions
+    if (forecastLower.contains('rain')) {
+      return isNight ? 'nra' : 'ra';
+    }
+
+    // Thunderstorm
+    if (forecastLower.contains('thunderstorm')) {
+      return isNight ? 'ntsra' : 'tsra';
+    }
+
+    // Fog/Mist
+    if (forecastLower.contains('fog') || 
+        forecastLower.contains('mist')) {
+      return isNight ? 'nfg' : 'fg';
+    }
+
+    // Haze
+    if (forecastLower.contains('haze')) {
+      return 'hz';
+    }
+
+    // Hot
+    if (forecastLower.contains('hot')) {
+      return 'hot';
+    }
+
+    // Cold
+    if (forecastLower.contains('cold')) {
+      return isNight ? 'ncold' : 'cold';
+    }
+
+    // Blizzard
+    if (forecastLower.contains('blizzard')) {
+      return isNight ? 'nblizzard' : 'blizzard';
+    }
+
+    print('Using default icon for: $forecastLower');
+    return isNight ? 'novc' : 'ovc';
   }
 
   int _extractPOP(String detailedForecast) {
@@ -187,6 +252,141 @@ class NWSService {
     } catch (e) {
       print('Error fetching alerts: $e');
       return [];
+    }
+  }
+
+  Future<String> getHazardousWeatherOutlook() async {
+    try {
+      final response = await http.get(
+        Uri.parse('https://api.weather.gov/products/types/HWO/locations/BGM'),
+        headers: {'User-Agent': _userAgent},
+      );
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        if (data['@graph'] != null && data['@graph'].isNotEmpty) {
+          final latestProduct = data['@graph'][0];
+          final productUrl = latestProduct['@id'];
+          
+          final productResponse = await http.get(
+            Uri.parse(productUrl),
+            headers: {'User-Agent': _userAgent},
+          );
+          
+          if (productResponse.statusCode == 200) {
+            final productData = json.decode(productResponse.body);
+            final rawText = productData['productText'] ?? '';
+            
+            // Clean up the text
+            final lines = rawText.split('\n');
+            final cleanedLines = <String>[];
+            bool startCollecting = false;
+            String? lastSection = null;
+            bool isFirstSection = true;
+            
+            for (final line in lines) {
+              // Skip header lines until we find the area description
+              if (line.contains('This Hazardous Weather Outlook is for')) {
+                startCollecting = true;
+              }
+              
+              if (startCollecting) {
+                // Skip empty lines and certain header lines
+                if (line.trim().isEmpty || 
+                    line.contains('National Weather Service') ||
+                    line.contains('AM EDT') ||
+                    line.contains('HWOBGM')) {
+                  continue;
+                }
+                
+                // Stop at the end marker
+                if (line.trim() == '\$\$') {
+                  break;
+                }
+
+                // Check if this is a new section
+                if (line.startsWith('.')) {
+                  if (!isFirstSection) {
+                    cleanedLines.add(''); // Add extra line break between sections
+                  }
+                  isFirstSection = false;
+                  lastSection = line.split('...')[0];
+                }
+                
+                cleanedLines.add(line);
+              }
+            }
+            
+            return cleanedLines.join('\n').trim();
+          }
+        }
+      }
+      return 'Unable to fetch Hazardous Weather Outlook';
+    } catch (e) {
+      print('Error fetching HWO: $e');
+      return 'Error fetching Hazardous Weather Outlook';
+    }
+  }
+
+  Future<Map<String, dynamic>> getCurrentConditions() async {
+    try {
+      // First, get the observation stations
+      final stationsResponse = await http.get(
+        Uri.parse('$_baseUrl/points/$_latitude,$_longitude/stations'),
+        headers: {'User-Agent': _userAgent},
+      );
+
+      if (stationsResponse.statusCode != 200) {
+        throw Exception('Failed to get stations: ${stationsResponse.statusCode}');
+      }
+
+      final stationsData = json.decode(stationsResponse.body);
+      final stations = stationsData['features'] as List;
+      
+      if (stations.isEmpty) {
+        throw Exception('No observation stations found');
+      }
+
+      // Get the latest observation from the first station
+      final stationId = stations[0]['properties']['stationIdentifier'];
+      final observationsResponse = await http.get(
+        Uri.parse('$_baseUrl/stations/$stationId/observations/latest'),
+        headers: {'User-Agent': _userAgent},
+      );
+
+      if (observationsResponse.statusCode != 200) {
+        throw Exception('Failed to get observations: ${observationsResponse.statusCode}');
+      }
+
+      final observationData = json.decode(observationsResponse.body);
+      final properties = observationData['properties'];
+      
+      // Extract and format the data
+      final condition = properties['textDescription'] ?? '';
+      final isNight = !(properties['isDaytime'] ?? true);
+      
+      return {
+        'temperature': properties['temperature']['value']?.toDouble() ?? 0.0,
+        'humidity': properties['relativeHumidity']['value']?.toDouble() ?? 0.0,
+        'windSpeed': properties['windSpeed']['value']?.toDouble() ?? 0.0,
+        'windDirection': properties['windDirection']['value']?.toString() ?? '',
+        'pressure': properties['barometricPressure']['value']?.toDouble() ?? 0.0,
+        'condition': condition,
+        'iconName': _getIconName(condition, isNight),
+        'isNight': isNight,
+      };
+    } catch (e) {
+      debugPrint('Error fetching current conditions: $e');
+      return {
+        'temperature': 0.0,
+        'humidity': 0.0,
+        'windSpeed': 0.0,
+        'windDirection': '',
+        'pressure': 0.0,
+        'condition': '',
+        'iconName': 'skc',
+        'isNight': false,
+      };
     }
   }
 } 

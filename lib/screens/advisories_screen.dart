@@ -1,159 +1,175 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../services/weather_service.dart';
-import '../models/weather_alert.dart';
+import '../services/nws_service.dart';
 
-class AdvisoriesScreen extends StatelessWidget {
+class AdvisoriesScreen extends StatefulWidget {
   const AdvisoriesScreen({super.key});
 
   @override
+  State<AdvisoriesScreen> createState() => _AdvisoriesScreenState();
+}
+
+class _AdvisoriesScreenState extends State<AdvisoriesScreen> {
+  String _hwoText = 'Loading...';
+  bool _isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadHWO();
+  }
+
+  Future<void> _loadHWO() async {
+    final nwsService = NWSService();
+    final hwo = await nwsService.getHazardousWeatherOutlook();
+    if (mounted) {
+      setState(() {
+        _hwoText = hwo;
+        _isLoading = false;
+      });
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Weather Advisories'),
-      ),
-      body: Consumer<WeatherService>(
-        builder: (context, weatherService, child) {
-          if (weatherService.isLoading) {
-            return const Center(
-              child: CircularProgressIndicator(),
-            );
-          }
-
-          if (weatherService.error != null) {
-            return Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  const Icon(
-                    Icons.error_outline,
-                    color: Colors.red,
-                    size: 60,
-                  ),
-                  const SizedBox(height: 16),
-                  Text(
-                    'Error: ${weatherService.error}',
-                    style: const TextStyle(color: Colors.red),
-                    textAlign: TextAlign.center,
-                  ),
-                  const SizedBox(height: 16),
-                  ElevatedButton(
-                    onPressed: () {
-                      weatherService.fetchWeatherData();
-                    },
-                    child: const Text('Retry'),
-                  ),
-                ],
-              ),
-            );
-          }
-
-          final alerts = weatherService.weatherData?.alerts ?? [];
-          if (alerts.isEmpty) {
-            return const Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(
-                    Icons.check_circle_outline,
-                    color: Colors.green,
-                    size: 60,
-                  ),
-                  SizedBox(height: 16),
-                  Text(
-                    'No Active Advisories',
-                    style: TextStyle(
-                      fontSize: 20,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  SizedBox(height: 8),
-                  Text(
-                    'There are no active weather advisories for the selected areas.',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      color: Colors.grey,
-                    ),
-                  ),
-                ],
-              ),
-            );
-          }
-
-          return ListView.builder(
-            padding: const EdgeInsets.all(16.0),
-            itemCount: alerts.length,
-            itemBuilder: (context, index) {
-              final alert = alerts[index];
-              final alertColor = _getAlertColor(alert.severity);
-              final lightAlertColor = alertColor.withOpacity(0.1);
-              
-              return Card(
-                margin: const EdgeInsets.only(bottom: 16.0),
-                color: lightAlertColor,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8.0),
-                  side: BorderSide(
-                    color: alertColor,
-                    width: 2.0,
+    return Consumer<WeatherService>(
+      builder: (context, weatherService, child) {
+        final alerts = weatherService.weatherData?.alerts ?? [];
+        if (alerts.isEmpty) {
+          return RefreshIndicator(
+            onRefresh: _loadHWO,
+            child: SingleChildScrollView(
+              physics: const AlwaysScrollableScrollPhysics(),
+              child: SafeArea(
+                child: Padding(
+                  padding: const EdgeInsets.all(16.0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Card(
+                        margin: EdgeInsets.symmetric(vertical: 8.0),
+                        color: Colors.green,
+                        child: Padding(
+                          padding: EdgeInsets.all(16.0),
+                          child: Row(
+                            children: [
+                              Icon(
+                                Icons.check_circle_outline,
+                                color: Colors.white,
+                              ),
+                              SizedBox(width: 8),
+                              Text(
+                                'No Active Advisories',
+                                style: TextStyle(
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.white,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                      Card(
+                        margin: const EdgeInsets.symmetric(vertical: 8.0),
+                        child: Padding(
+                          padding: const EdgeInsets.all(16.0),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Row(
+                                children: [
+                                  Icon(
+                                    Icons.info_outline,
+                                    color: Colors.blue,
+                                  ),
+                                  SizedBox(width: 8),
+                                  Text(
+                                    'Hazardous Weather Outlook',
+                                    style: TextStyle(
+                                      fontSize: 20,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 16),
+                              if (_isLoading)
+                                const Center(child: CircularProgressIndicator())
+                              else
+                                Text(
+                                  _hwoText,
+                                  style: const TextStyle(fontSize: 16),
+                                ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                 ),
-                child: ExpansionTile(
-                  title: Text(
-                    alert.event,
-                    style: TextStyle(
-                      fontWeight: FontWeight.bold,
-                      color: alertColor,
-                    ),
+              ),
+            ),
+          );
+        }
+
+        return ListView.builder(
+          itemCount: alerts.length,
+          itemBuilder: (context, index) {
+            final alert = alerts[index];
+            return Card(
+              margin: const EdgeInsets.symmetric(vertical: 8.0, horizontal: 16.0),
+              child: ExpansionTile(
+                leading: Icon(
+                  _getAlertIcon(alert.severity),
+                  color: _getAlertColor(alert.severity),
+                ),
+                title: Text(
+                  alert.event,
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    color: _getAlertColor(alert.severity),
                   ),
-                  subtitle: Text(
-                    '${alert.area} - ${alert.effective}',
-                    style: const TextStyle(
-                      color: Colors.grey,
-                    ),
-                  ),
-                  leading: Icon(
-                    _getAlertIcon(alert.severity),
-                    color: alertColor,
-                  ),
-                  children: [
-                    Padding(
-                      padding: const EdgeInsets.all(16.0),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            alert.description,
-                            style: const TextStyle(
-                              fontSize: 16,
-                            ),
+                ),
+                subtitle: Text(alert.area),
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.all(16.0),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          alert.description,
+                          style: const TextStyle(
+                            fontSize: 16,
                           ),
-                          const SizedBox(height: 16),
+                        ),
+                        const SizedBox(height: 16),
+                        Text(
+                          'Issued: ${alert.issued}',
+                          style: const TextStyle(
+                            color: Colors.grey,
+                            fontSize: 12,
+                          ),
+                        ),
+                        if (alert.expires != null)
                           Text(
-                            'Issued: ${alert.issued}',
+                            'Expires: ${alert.expires}',
                             style: const TextStyle(
                               color: Colors.grey,
                               fontSize: 12,
                             ),
                           ),
-                          if (alert.expires != null)
-                            Text(
-                              'Expires: ${alert.expires}',
-                              style: const TextStyle(
-                                color: Colors.grey,
-                                fontSize: 12,
-                              ),
-                            ),
-                        ],
-                      ),
+                      ],
                     ),
-                  ],
-                ),
-              );
-            },
-          );
-        },
-      ),
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
     );
   }
 

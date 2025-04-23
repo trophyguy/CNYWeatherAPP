@@ -45,6 +45,9 @@ class WeatherData {
   // Time/Date
   final String lastUpdatedTime;
   final String lastUpdatedDate;
+  final bool isNight;
+  final String condition;
+  final String iconName;
 
   // Temperature/Humidity
   final double temperature;
@@ -71,7 +74,7 @@ class WeatherData {
 
   // Air Quality
   final double aqi;
-
+  
   // Wind
   final double windSpeed;
   final double windGust;
@@ -133,9 +136,22 @@ class WeatherData {
   // Alerts
   final List<WeatherAlert> alerts;
 
+  // Sun and Moon data
+  final DateTime sunrise;
+  final DateTime sunset;
+  final Duration daylightChange;
+  final double possibleDaylight;  // Total hours of possible daylight
+  final DateTime moonrise;
+  final DateTime moonset;
+  final double moonPhase;  // 0 to 1
+  final String moonPhaseName;
+
   WeatherData({
     required this.lastUpdatedTime,
     required this.lastUpdatedDate,
+    required this.isNight,
+    required this.condition,
+    required this.iconName,
     required this.temperature,
     required this.tempNoDecimal,
     required this.humidity,
@@ -201,99 +217,102 @@ class WeatherData {
     required this.minTempYesterday,
     required this.forecast,
     required this.alerts,
+    required this.sunrise,
+    required this.sunset,
+    required this.daylightChange,
+    required this.possibleDaylight,
+    required this.moonrise,
+    required this.moonset,
+    required this.moonPhase,
+    required this.moonPhaseName,
   });
 
   factory WeatherData.fromJson(Map<String, dynamic> json) {
-    debugPrint('JSON tempNoDecimal: ${json['tempNoDecimal']}');
-    List<WeatherAdvisory> advisoryList = [];
-    if (json['advisories'] != null) {
-      advisoryList = (json['advisories'] as List)
-          .map((advisory) => WeatherAdvisory.fromJson(advisory))
-          .toList();
-    }
-
-    List<ForecastPeriod> forecastList = [];
-    if (json['forecast'] != null) {
-      forecastList = (json['forecast'] as List)
-          .map((period) => ForecastPeriod.fromJson(period))
-          .toList();
-    }
-
-    List<WeatherAlert> alertList = [];
-    if (json['alerts'] != null) {
-      alertList = (json['alerts'] as List)
-          .map((alert) => WeatherAlert.fromJson(alert))
-          .toList();
-    }
-
     return WeatherData(
       lastUpdatedTime: json['lastUpdatedTime'] ?? '',
       lastUpdatedDate: json['lastUpdatedDate'] ?? '',
-      temperature: json['temperature'] ?? 0.0,
-      tempNoDecimal: (json['tempNoDecimal'] as num?)?.toDouble() ?? 0.0,
-      humidity: json['humidity'] ?? 0.0,
-      dewPoint: json['dewPoint'] ?? 0.0,
-      maxTemp: json['maxTemp'] ?? 0.0,
+      isNight: json['isNight'] ?? false,
+      condition: json['condition'] ?? '',
+      iconName: json['iconName'] ?? 'skc',  // Default to clear sky
+      temperature: (json['temperature'] ?? 0.0).toDouble(),
+      tempNoDecimal: (json['tempNoDecimal'] ?? 0.0).toDouble(),
+      humidity: (json['humidity'] ?? 0.0).toDouble(),
+      dewPoint: (json['dewPoint'] ?? 0.0).toDouble(),
+      maxTemp: (json['maxTemp'] ?? 0.0).toDouble(),
       maxTempTime: json['maxTempTime'] ?? '',
-      minTemp: json['minTemp'] ?? 0.0,
+      minTemp: (json['minTemp'] ?? 0.0).toDouble(),
       minTempTime: json['minTempTime'] ?? '',
-      maxTempLastYear: json['maxTempLastYear'] ?? 0.0,
-      minTempLastYear: json['minTempLastYear'] ?? 0.0,
-      maxTempRecord: json['maxTempRecord'] ?? 0.0,
-      minTempRecord: json['minTempRecord'] ?? 0.0,
-      maxTempAverage: json['maxTempAverage'] ?? 0.0,
-      minTempAverage: json['minTempAverage'] ?? 0.0,
-      feelsLike: json['feelsLike'] ?? 0.0,
-      heatIndex: json['heatIndex'] ?? 0.0,
-      windChill: json['windChill'] ?? 0.0,
-      humidex: json['humidex'] ?? 0.0,
-      apparentTemp: json['apparentTemp'] ?? 0.0,
-      apparentSolarTemp: json['apparentSolarTemp'] ?? 0.0,
-      tempChangeHour: json['tempChangeHour'] ?? 0.0,
-      aqi: json['aqi'] ?? 0.0,
-      windSpeed: json['windSpeed'] ?? 0.0,
-      windGust: json['windGust'] ?? 0.0,
-      maxGust: json['maxGust'] ?? 0.0,
+      maxTempLastYear: (json['maxTempLastYear'] ?? 0.0).toDouble(),
+      minTempLastYear: (json['minTempLastYear'] ?? 0.0).toDouble(),
+      maxTempRecord: (json['maxTempRecord'] ?? 0.0).toDouble(),
+      minTempRecord: (json['minTempRecord'] ?? 0.0).toDouble(),
+      maxTempAverage: (json['maxTempAverage'] ?? 0.0).toDouble(),
+      minTempAverage: (json['minTempAverage'] ?? 0.0).toDouble(),
+      feelsLike: (json['feelsLike'] ?? 0.0).toDouble(),
+      heatIndex: (json['heatIndex'] ?? 0.0).toDouble(),
+      windChill: (json['windChill'] ?? 0.0).toDouble(),
+      humidex: (json['humidex'] ?? 0.0).toDouble(),
+      apparentTemp: (json['apparentTemp'] ?? 0.0).toDouble(),
+      apparentSolarTemp: (json['apparentSolarTemp'] ?? 0.0).toDouble(),
+      tempChangeHour: (json['tempChangeHour'] ?? 0.0).toDouble(),
+      aqi: (json['aqi'] ?? 0.0).toDouble(),
+      windSpeed: (json['windSpeed'] ?? 0.0).toDouble(),
+      windGust: (json['windGust'] ?? 0.0).toDouble(),
+      maxGust: (json['maxGust'] ?? 0.0).toDouble(),
       maxGustTime: json['maxGustTime'] ?? '',
       windDirection: json['windDirection'] ?? '',
       windDirectionDegrees: json['windDirectionDegrees'] ?? 0,
-      avgWind10Min: json['avgWind10Min'] ?? 0.0,
-      monthlyHighWindGust: json['monthlyHighWindGust'] ?? 0.0,
+      avgWind10Min: (json['avgWind10Min'] ?? 0.0).toDouble(),
+      monthlyHighWindGust: (json['monthlyHighWindGust'] ?? 0.0).toDouble(),
       beaufortScale: json['beaufortScale'] ?? '',
       beaufortText: json['beaufortText'] ?? '',
-      pressure: json['pressure'] ?? 0.0,
+      pressure: (json['pressure'] ?? 0.0).toDouble(),
       pressureTrend: json['pressureTrend'] ?? '',
       pressureTrend3Hour: json['pressureTrend3Hour'] ?? '',
       forecastText: json['forecastText'] ?? '',
-      dailyRain: json['dailyRain'] ?? 0.0,
-      yesterdayRain: json['yesterdayRain'] ?? 0.0,
-      monthlyRain: json['monthlyRain'] ?? 0.0,
-      yearlyRain: json['yearlyRain'] ?? 0.0,
+      dailyRain: (json['dailyRain'] ?? 0.0).toDouble(),
+      yesterdayRain: (json['yesterdayRain'] ?? 0.0).toDouble(),
+      monthlyRain: (json['monthlyRain'] ?? 0.0).toDouble(),
+      yearlyRain: (json['yearlyRain'] ?? 0.0).toDouble(),
       daysWithNoRain: json['daysWithNoRain'] ?? 0,
       daysWithRain: json['daysWithRain'] ?? 0,
-      currentRainRate: json['currentRainRate'] ?? 0.0,
-      maxRainRate: json['maxRainRate'] ?? 0.0,
+      currentRainRate: (json['currentRainRate'] ?? 0.0).toDouble(),
+      maxRainRate: (json['maxRainRate'] ?? 0.0).toDouble(),
       maxRainRateTime: json['maxRainRateTime'] ?? '',
-      solarRadiation: json['solarRadiation'] ?? 0.0,
-      uvIndex: json['uvIndex'] ?? 0.0,
-      highSolar: json['highSolar'] ?? 0.0,
-      highUV: json['highUV'] ?? 0.0,
+      solarRadiation: (json['solarRadiation'] ?? 0.0).toDouble(),
+      uvIndex: (json['uvIndex'] ?? 0.0).toDouble(),
+      highSolar: (json['highSolar'] ?? 0.0).toDouble(),
+      highUV: (json['highUV'] ?? 0.0).toDouble(),
       highSolarTime: json['highSolarTime'] ?? '',
       highUVTime: json['highUVTime'] ?? '',
       burnTime: json['burnTime'] ?? 0,
-      snowSeason: json['snowSeason'] ?? 0.0,
-      snowMonth: json['snowMonth'] ?? 0.0,
-      snowToday: json['snowToday'] ?? 0.0,
-      snowYesterday: json['snowYesterday'] ?? 0.0,
-      snowHeight: json['snowHeight'] ?? 0.0,
-      snowDepth: json['snowDepth'] ?? 0.0,
+      snowSeason: (json['snowSeason'] ?? 0.0).toDouble(),
+      snowMonth: (json['snowMonth'] ?? 0.0).toDouble(),
+      snowToday: (json['snowToday'] ?? 0.0).toDouble(),
+      snowYesterday: (json['snowYesterday'] ?? 0.0).toDouble(),
+      snowHeight: (json['snowHeight'] ?? 0.0).toDouble(),
+      snowDepth: (json['snowDepth'] ?? 0.0).toDouble(),
       snowDaysThisMonth: json['snowDaysThisMonth'] ?? 0,
       snowDaysThisYear: json['snowDaysThisYear'] ?? 0,
-      advisories: advisoryList,
+      advisories: (json['advisories'] as List<dynamic>?)
+          ?.map((e) => WeatherAdvisory.fromJson(e as Map<String, dynamic>))
+          .toList() ?? [],
       maxTempYesterday: (json['maxTempYesterday'] ?? 0.0).toDouble(),
       minTempYesterday: (json['minTempYesterday'] ?? 0.0).toDouble(),
-      forecast: forecastList,
-      alerts: alertList,
+      forecast: (json['forecast'] as List<dynamic>?)
+          ?.map((e) => ForecastPeriod.fromJson(e as Map<String, dynamic>))
+          .toList() ?? [],
+      alerts: (json['alerts'] as List<dynamic>?)
+          ?.map((e) => WeatherAlert.fromJson(e as Map<String, dynamic>))
+          .toList() ?? [],
+      sunrise: json['sunrise'] != null ? DateTime.parse(json['sunrise'].toString()) : DateTime.now(),
+      sunset: json['sunset'] != null ? DateTime.parse(json['sunset'].toString()) : DateTime.now(),
+      daylightChange: json['daylightChange'] != null ? Duration(seconds: json['daylightChange']) : Duration.zero,
+      possibleDaylight: (json['possibleDaylight'] ?? 0.0).toDouble(),
+      moonrise: json['moonrise'] != null ? DateTime.parse(json['moonrise'].toString()) : DateTime.now(),
+      moonset: json['moonset'] != null ? DateTime.parse(json['moonset'].toString()) : DateTime.now(),
+      moonPhase: (json['moonPhase'] ?? 0.0).toDouble(),
+      moonPhaseName: json['moonPhaseName'] ?? '',
     );
   }
 
@@ -301,6 +320,9 @@ class WeatherData {
     return {
       'lastUpdatedTime': lastUpdatedTime,
       'lastUpdatedDate': lastUpdatedDate,
+      'isNight': isNight,
+      'condition': condition,
+      'iconName': iconName,
       'temperature': temperature,
       'tempNoDecimal': tempNoDecimal,
       'humidity': humidity,
@@ -361,11 +383,19 @@ class WeatherData {
       'snowDepth': snowDepth,
       'snowDaysThisMonth': snowDaysThisMonth,
       'snowDaysThisYear': snowDaysThisYear,
-      'advisories': advisories.map((advisory) => advisory.toJson()).toList(),
+      'advisories': advisories.map((e) => e.toJson()).toList(),
       'maxTempYesterday': maxTempYesterday,
       'minTempYesterday': minTempYesterday,
-      'forecast': forecast.map((period) => period.toJson()).toList(),
-      'alerts': alerts.map((alert) => alert.toJson()).toList(),
+      'forecast': forecast.map((e) => e.toJson()).toList(),
+      'alerts': alerts.map((e) => e.toJson()).toList(),
+      'sunrise': sunrise.toIso8601String(),
+      'sunset': sunset.toIso8601String(),
+      'daylightChange': daylightChange.inSeconds,
+      'possibleDaylight': possibleDaylight,
+      'moonrise': moonrise.toIso8601String(),
+      'moonset': moonset.toIso8601String(),
+      'moonPhase': moonPhase,
+      'moonPhaseName': moonPhaseName,
     };
   }
 
@@ -373,6 +403,9 @@ class WeatherData {
     return WeatherData(
       lastUpdatedTime: changes['lastUpdatedTime']?.toString() ?? lastUpdatedTime,
       lastUpdatedDate: changes['lastUpdatedDate']?.toString() ?? lastUpdatedDate,
+      isNight: changes['isNight'] ?? isNight,
+      condition: changes['condition']?.toString() ?? condition,
+      iconName: changes['iconName']?.toString() ?? iconName,
       temperature: (changes['temperature'] as num?)?.toDouble() ?? temperature,
       tempNoDecimal: (changes['tempNoDecimal'] as num?)?.toDouble() ?? tempNoDecimal,
       humidity: (changes['humidity'] as num?)?.toDouble() ?? humidity,
@@ -444,6 +477,14 @@ class WeatherData {
       alerts: changes['alerts'] != null 
           ? _parseAlerts(changes['alerts'].toString())
           : alerts,
+      sunrise: changes['sunrise'] != null ? DateTime.parse(changes['sunrise'].toString()) : sunrise,
+      sunset: changes['sunset'] != null ? DateTime.parse(changes['sunset'].toString()) : sunset,
+      daylightChange: changes['daylightChange'] != null ? Duration(seconds: changes['daylightChange']) : daylightChange,
+      possibleDaylight: (changes['possibleDaylight'] as num?)?.toDouble() ?? possibleDaylight,
+      moonrise: changes['moonrise'] != null ? DateTime.parse(changes['moonrise'].toString()) : moonrise,
+      moonset: changes['moonset'] != null ? DateTime.parse(changes['moonset'].toString()) : moonset,
+      moonPhase: (changes['moonPhase'] as num?)?.toDouble() ?? moonPhase,
+      moonPhaseName: changes['moonPhaseName']?.toString() ?? moonPhaseName,
     );
   }
 

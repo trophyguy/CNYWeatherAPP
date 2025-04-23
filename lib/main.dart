@@ -1,10 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:cnyweatherapp/screens/main_navigation_screen.dart';
-import 'package:cnyweatherapp/services/weather_service.dart';
-import 'package:cnyweatherapp/repositories/weather_repository.dart';
-import 'package:cnyweatherapp/services/cache_service.dart';
-import 'package:cnyweatherapp/services/openweather_service.dart';
+import 'screens/home_screen.dart';
+import 'screens/forecast_screen.dart';
+import 'screens/advisories_screen.dart';
+import 'screens/radar_screen.dart';
+import 'screens/settings_screen.dart';
+import 'screens/webcams_screen.dart';
+import 'services/weather_service.dart';
+import 'repositories/weather_repository.dart';
+import 'services/cache_service.dart';
+import 'services/openweather_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -26,8 +31,15 @@ void main() async {
   );
 }
 
-class MyApp extends StatelessWidget {
+class MyApp extends StatefulWidget {
   const MyApp({super.key});
+
+  @override
+  State<MyApp> createState() => _MyAppState();
+}
+
+class _MyAppState extends State<MyApp> {
+  int _selectedIndex = 0;
 
   @override
   Widget build(BuildContext context) {
@@ -68,7 +80,56 @@ class MyApp extends StatelessWidget {
         ),
       ),
       themeMode: ThemeMode.dark,
-      home: const MainNavigationScreen(),
+      home: Scaffold(
+        body: Consumer<WeatherService>(
+          builder: (context, weatherService, child) {
+            final pages = <Widget>[
+              const HomeScreen(),
+              const RadarScreen(),
+              ForecastScreen(forecast: weatherService.weatherData?.forecast ?? []),
+              const AdvisoriesScreen(),
+              const WebcamsScreen(),
+            ];
+            
+            return pages[_selectedIndex];
+          },
+        ),
+        bottomNavigationBar: NavigationBar(
+          selectedIndex: _selectedIndex,
+          onDestinationSelected: (int index) {
+            setState(() {
+              _selectedIndex = index;
+            });
+          },
+          destinations: const <NavigationDestination>[
+            NavigationDestination(
+              icon: Icon(Icons.home_outlined),
+              selectedIcon: Icon(Icons.home),
+              label: 'Home',
+            ),
+            NavigationDestination(
+              icon: Icon(Icons.radar_outlined),
+              selectedIcon: Icon(Icons.radar),
+              label: 'Radar',
+            ),
+            NavigationDestination(
+              icon: Icon(Icons.calendar_today_outlined),
+              selectedIcon: Icon(Icons.calendar_today),
+              label: 'Forecast',
+            ),
+            NavigationDestination(
+              icon: Icon(Icons.warning_amber_outlined),
+              selectedIcon: Icon(Icons.warning_amber),
+              label: 'Advisories',
+            ),
+            NavigationDestination(
+              icon: Icon(Icons.camera_alt_outlined),
+              selectedIcon: Icon(Icons.camera_alt),
+              label: 'Webcams',
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
