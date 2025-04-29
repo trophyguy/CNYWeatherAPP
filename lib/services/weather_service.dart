@@ -1,3 +1,9 @@
+// **************************************************************************
+// * WARNING: DO NOT MODIFY THIS FILE WITHOUT EXPLICIT APPROVAL                *
+// * Changes to this file should be properly reviewed and authorized          *
+// * Version: 1.1.0                                                          *
+// **************************************************************************
+
 import 'dart:async';
 import 'package:flutter/foundation.dart';
 import '../models/weather_data.dart';

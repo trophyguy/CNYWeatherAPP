@@ -1,3 +1,9 @@
+// **************************************************************************
+// * WARNING: DO NOT MODIFY THIS FILE WITHOUT EXPLICIT APPROVAL                *
+// * Changes to this file should be properly reviewed and authorized          *
+// * Version: 1.1.0                                                          *
+// **************************************************************************
+
 import 'package:flutter/material.dart';
 import '../models/forecast_data.dart';
 import 'package:intl/intl.dart';
@@ -44,62 +50,84 @@ class ForecastScreen extends StatelessWidget {
             Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Image.asset(
-                  iconPath,
+                // Weather icon with fixed size
+                SizedBox(
                   width: 64,
                   height: 64,
-                  errorBuilder: (context, error, stackTrace) {
-                    debugPrint('Error loading icon: $iconPath');
-                    debugPrint('Error details: $error');
-                    return const Icon(
-                      Icons.error_outline,
-                      color: Colors.red,
-                      size: 64,
-                    );
-                  },
+                  child: Image.asset(
+                    iconPath,
+                    fit: BoxFit.contain,
+                    errorBuilder: (context, error, stackTrace) {
+                      debugPrint('Error loading icon: $iconPath');
+                      debugPrint('Error details: $error');
+                      return const Icon(
+                        Icons.error_outline,
+                        color: Colors.red,
+                        size: 64,
+                      );
+                    },
+                  ),
                 ),
                 const SizedBox(width: 16),
+                // Weather details with fixed height
                 Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        period.condition,
-                        style: const TextStyle(
-                          fontSize: 20,
-                          color: Colors.white,
+                  child: SizedBox(
+                    height: 64, // Fixed height to match icon
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        // Condition text with wrapping
+                        Flexible(
+                          child: Text(
+                            period.condition,
+                            style: const TextStyle(
+                              fontSize: 20,
+                              color: Colors.white,
+                            ),
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                          ),
                         ),
-                      ),
-                      const SizedBox(height: 8),
-                      Row(
-                        children: [
-                          Text(
-                            period.isNight ? 'Lo ' : 'Hi ',
-                            style: TextStyle(
-                              fontSize: 16,
-                              color: Colors.grey[400],
+                        // Temperature row
+                        Row(
+                          children: [
+                            Text(
+                              period.isNight ? 'Lo ' : 'Hi ',
+                              style: TextStyle(
+                                fontSize: 16,
+                                color: Colors.grey[400],
+                              ),
                             ),
-                          ),
-                          Text(
-                            '${period.temperature.round()}°F',
-                            style: TextStyle(
-                              fontSize: 24,
-                              fontWeight: FontWeight.bold,
-                              color: period.isNight ? Colors.blue : Colors.red,
+                            Text(
+                              '${period.temperature.round()}°F',
+                              style: TextStyle(
+                                fontSize: 24,
+                                fontWeight: FontWeight.bold,
+                                color: period.isNight ? Colors.blue : Colors.red,
+                              ),
                             ),
-                          ),
-                        ],
-                      ),
-                    ],
+                          ],
+                        ),
+                      ],
+                    ),
                   ),
                 ),
               ],
             ),
             const SizedBox(height: 16),
-            // Detailed forecast
-            Text(
-              period.detailedForecast,
-              style: const TextStyle(fontSize: 16),
+            // Detailed forecast with consistent spacing and wrapping
+            SizedBox(
+              height: 72, // Fixed height to accommodate up to 3 lines of text
+              child: SingleChildScrollView(
+                child: Text(
+                  period.detailedForecast,
+                  style: const TextStyle(
+                    fontSize: 16,
+                    color: Colors.white70,
+                  ),
+                ),
+              ),
             ),
           ],
         ),

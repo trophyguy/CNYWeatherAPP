@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'dart:convert';
 import 'forecast_data.dart';
 import 'weather_alert.dart';
+import 'package:flutter/material.dart';
 
 class WeatherAdvisory {
   final String type;
@@ -74,6 +75,16 @@ class WeatherData {
 
   // Air Quality
   final double aqi;
+  
+  // Get AQI color based on value
+  Color get aqiColor {
+    if (aqi <= 50) return Colors.green;
+    if (aqi <= 100) return Colors.yellow;
+    if (aqi <= 150) return Colors.orange;
+    if (aqi <= 200) return Colors.red;
+    if (aqi <= 300) return Colors.purple;
+    return Colors.red.shade900;
+  }
   
   // Wind
   final double windSpeed;
@@ -397,142 +408,5 @@ class WeatherData {
       'moonPhase': moonPhase,
       'moonPhaseName': moonPhaseName,
     };
-  }
-
-  WeatherData copyWith(Map<String, dynamic> changes) {
-    return WeatherData(
-      lastUpdatedTime: changes['lastUpdatedTime']?.toString() ?? lastUpdatedTime,
-      lastUpdatedDate: changes['lastUpdatedDate']?.toString() ?? lastUpdatedDate,
-      isNight: changes['isNight'] ?? isNight,
-      condition: changes['condition']?.toString() ?? condition,
-      iconName: changes['iconName']?.toString() ?? iconName,
-      temperature: (changes['temperature'] as num?)?.toDouble() ?? temperature,
-      tempNoDecimal: (changes['tempNoDecimal'] as num?)?.toDouble() ?? tempNoDecimal,
-      humidity: (changes['humidity'] as num?)?.toDouble() ?? humidity,
-      dewPoint: (changes['dewPoint'] as num?)?.toDouble() ?? dewPoint,
-      maxTemp: (changes['maxTemp'] as num?)?.toDouble() ?? maxTemp,
-      maxTempTime: changes['maxTempTime']?.toString() ?? maxTempTime,
-      minTemp: (changes['minTemp'] as num?)?.toDouble() ?? minTemp,
-      minTempTime: changes['minTempTime']?.toString() ?? minTempTime,
-      maxTempLastYear: (changes['maxTempLastYear'] as num?)?.toDouble() ?? maxTempLastYear,
-      minTempLastYear: (changes['minTempLastYear'] as num?)?.toDouble() ?? minTempLastYear,
-      maxTempRecord: (changes['maxTempRecord'] as num?)?.toDouble() ?? maxTempRecord,
-      minTempRecord: (changes['minTempRecord'] as num?)?.toDouble() ?? minTempRecord,
-      maxTempAverage: (changes['maxTempAverage'] as num?)?.toDouble() ?? maxTempAverage,
-      minTempAverage: (changes['minTempAverage'] as num?)?.toDouble() ?? minTempAverage,
-      feelsLike: (changes['feelsLike'] as num?)?.toDouble() ?? feelsLike,
-      heatIndex: (changes['heatIndex'] as num?)?.toDouble() ?? heatIndex,
-      windChill: (changes['windChill'] as num?)?.toDouble() ?? windChill,
-      humidex: (changes['humidex'] as num?)?.toDouble() ?? humidex,
-      apparentTemp: (changes['apparentTemp'] as num?)?.toDouble() ?? apparentTemp,
-      apparentSolarTemp: (changes['apparentSolarTemp'] as num?)?.toDouble() ?? apparentSolarTemp,
-      tempChangeHour: (changes['tempChangeHour'] as num?)?.toDouble() ?? tempChangeHour,
-      aqi: (changes['aqi'] as num?)?.toDouble() ?? aqi,
-      windSpeed: (changes['windSpeed'] as num?)?.toDouble() ?? windSpeed,
-      windGust: (changes['windGust'] as num?)?.toDouble() ?? windGust,
-      maxGust: (changes['maxGust'] as num?)?.toDouble() ?? maxGust,
-      maxGustTime: changes['maxGustTime']?.toString() ?? maxGustTime,
-      windDirection: changes['windDirection']?.toString() ?? windDirection,
-      windDirectionDegrees: changes['windDirectionDegrees'] ?? windDirectionDegrees,
-      avgWind10Min: (changes['avgWind10Min'] as num?)?.toDouble() ?? avgWind10Min,
-      monthlyHighWindGust: (changes['monthlyHighWindGust'] as num?)?.toDouble() ?? monthlyHighWindGust,
-      beaufortScale: changes['beaufortScale']?.toString() ?? beaufortScale,
-      beaufortText: changes['beaufortText']?.toString() ?? beaufortText,
-      pressure: (changes['pressure'] as num?)?.toDouble() ?? pressure,
-      pressureTrend: changes['pressureTrend']?.toString() ?? pressureTrend,
-      pressureTrend3Hour: changes['pressureTrend3Hour']?.toString() ?? pressureTrend3Hour,
-      forecastText: changes['forecastText']?.toString() ?? forecastText,
-      dailyRain: (changes['dailyRain'] as num?)?.toDouble() ?? dailyRain,
-      yesterdayRain: (changes['yesterdayRain'] as num?)?.toDouble() ?? yesterdayRain,
-      monthlyRain: (changes['monthlyRain'] as num?)?.toDouble() ?? monthlyRain,
-      yearlyRain: (changes['yearlyRain'] as num?)?.toDouble() ?? yearlyRain,
-      daysWithNoRain: changes['daysWithNoRain'] ?? daysWithNoRain,
-      daysWithRain: changes['daysWithRain'] ?? daysWithRain,
-      currentRainRate: (changes['currentRainRate'] as num?)?.toDouble() ?? currentRainRate,
-      maxRainRate: (changes['maxRainRate'] as num?)?.toDouble() ?? maxRainRate,
-      maxRainRateTime: changes['maxRainRateTime']?.toString() ?? maxRainRateTime,
-      solarRadiation: (changes['solarRadiation'] as num?)?.toDouble() ?? solarRadiation,
-      uvIndex: (changes['uvIndex'] as num?)?.toDouble() ?? uvIndex,
-      highSolar: (changes['highSolar'] as num?)?.toDouble() ?? highSolar,
-      highUV: (changes['highUV'] as num?)?.toDouble() ?? highUV,
-      highSolarTime: changes['highSolarTime']?.toString() ?? highSolarTime,
-      highUVTime: changes['highUVTime']?.toString() ?? highUVTime,
-      burnTime: changes['burnTime'] ?? burnTime,
-      snowSeason: (changes['snowSeason'] as num?)?.toDouble() ?? snowSeason,
-      snowMonth: (changes['snowMonth'] as num?)?.toDouble() ?? snowMonth,
-      snowToday: (changes['snowToday'] as num?)?.toDouble() ?? snowToday,
-      snowYesterday: (changes['snowYesterday'] as num?)?.toDouble() ?? snowYesterday,
-      snowHeight: (changes['snowHeight'] as num?)?.toDouble() ?? snowHeight,
-      snowDepth: (changes['snowDepth'] as num?)?.toDouble() ?? snowDepth,
-      snowDaysThisMonth: changes['snowDaysThisMonth'] ?? snowDaysThisMonth,
-      snowDaysThisYear: changes['snowDaysThisYear'] ?? snowDaysThisYear,
-      advisories: changes['advisories'] != null 
-          ? _parseAdvisories(changes['advisories'].toString())
-          : advisories,
-      maxTempYesterday: (changes['maxTempYesterday'] as num?)?.toDouble() ?? maxTempYesterday,
-      minTempYesterday: (changes['minTempYesterday'] as num?)?.toDouble() ?? minTempYesterday,
-      forecast: changes['forecast'] != null 
-          ? _parseForecast(changes['forecast'].toString())
-          : forecast,
-      alerts: changes['alerts'] != null 
-          ? _parseAlerts(changes['alerts'].toString())
-          : alerts,
-      sunrise: changes['sunrise'] != null ? DateTime.parse(changes['sunrise'].toString()) : sunrise,
-      sunset: changes['sunset'] != null ? DateTime.parse(changes['sunset'].toString()) : sunset,
-      daylightChange: changes['daylightChange'] != null ? Duration(seconds: changes['daylightChange']) : daylightChange,
-      possibleDaylight: (changes['possibleDaylight'] as num?)?.toDouble() ?? possibleDaylight,
-      moonrise: changes['moonrise'] != null ? DateTime.parse(changes['moonrise'].toString()) : moonrise,
-      moonset: changes['moonset'] != null ? DateTime.parse(changes['moonset'].toString()) : moonset,
-      moonPhase: (changes['moonPhase'] as num?)?.toDouble() ?? moonPhase,
-      moonPhaseName: changes['moonPhaseName']?.toString() ?? moonPhaseName,
-    );
-  }
-
-  static List<WeatherAdvisory> _parseAdvisories(String? advisoriesJson) {
-    if (advisoriesJson == null || advisoriesJson.isEmpty) {
-      return [];
-    }
-
-    try {
-      final List<dynamic> jsonList = json.decode(advisoriesJson) as List;
-      return jsonList
-          .map((json) => WeatherAdvisory.fromJson(json as Map<String, dynamic>))
-          .toList();
-    } catch (e) {
-      debugPrint('Error parsing advisories: $e');
-      return [];
-    }
-  }
-
-  static List<ForecastPeriod> _parseForecast(String? forecastJson) {
-    if (forecastJson == null || forecastJson.isEmpty) {
-      return [];
-    }
-
-    try {
-      final List<dynamic> jsonList = json.decode(forecastJson) as List;
-      return jsonList
-          .map((json) => ForecastPeriod.fromJson(json as Map<String, dynamic>))
-          .toList();
-    } catch (e) {
-      debugPrint('Error parsing forecast: $e');
-      return [];
-    }
-  }
-
-  static List<WeatherAlert> _parseAlerts(String? alertsJson) {
-    if (alertsJson == null || alertsJson.isEmpty) {
-      return [];
-    }
-
-    try {
-      final List<dynamic> jsonList = json.decode(alertsJson) as List;
-      return jsonList
-          .map((json) => WeatherAlert.fromJson(json as Map<String, dynamic>))
-          .toList();
-    } catch (e) {
-      debugPrint('Error parsing alerts: $e');
-      return [];
-    }
   }
 } 

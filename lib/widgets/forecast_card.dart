@@ -17,13 +17,9 @@ class ForecastCard extends StatelessWidget {
     debugPrint('  Icon Name: ${period.iconName}');
     debugPrint('  Full Icon Path: $iconPath');
     
-    // Split condition into two lines if it contains a space
-    List<String> conditionParts = period.condition.split(' ');
-    String firstLine = conditionParts.first;
-    String secondLine = conditionParts.length > 1 ? conditionParts.sublist(1).join(' ') : '';
-    
     return Expanded(
       child: Column(
+        mainAxisSize: MainAxisSize.min,
         mainAxisAlignment: MainAxisAlignment.start,
         children: [
           Text(
@@ -33,33 +29,33 @@ class ForecastCard extends StatelessWidget {
               color: Colors.white,
             ),
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 4),
           Image.asset(
             iconPath,
-            width: 48,
-            height: 48,
+            width: 40,
+            height: 40,
             errorBuilder: (context, error, stackTrace) {
               debugPrint('Error loading icon: $iconPath');
               debugPrint('Error details: $error');
               return const Icon(
                 Icons.error_outline,
                 color: Colors.red,
-                size: 48,
+                size: 40,
               );
             },
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 4),
           Text(
             period.condition,
             style: const TextStyle(
               fontSize: 12,
               color: Colors.white,
+              height: 1.1,
             ),
             textAlign: TextAlign.center,
-            maxLines: 3,
-            overflow: TextOverflow.ellipsis,
+            maxLines: 2,
           ),
-          const SizedBox(height: 4),
+          const SizedBox(height: 2),
           Text(
             '${period.isNight ? "Lo" : "Hi"} ${period.temperature.round()}°',
             style: TextStyle(
@@ -144,6 +140,7 @@ class ForecastCard extends StatelessWidget {
               else
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     for (int i = 0; i < min(4, weatherData.forecast.length); i++) ...[
                       if (i > 0) _buildDivider(),

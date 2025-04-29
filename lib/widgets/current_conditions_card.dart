@@ -57,15 +57,23 @@ class CurrentConditionsCard extends StatelessWidget {
         ),
         if (isNewRecordHigh || isNewRecordLow) ...[
           const SizedBox(height: 4),
-          Text(
-            isNewRecordHigh && isNewRecordLow 
-                ? '* New Record High & Low' 
-                : isNewRecordHigh 
-                    ? '* New Record High' 
-                    : '* New Record Low',
-            style: const TextStyle(
-              fontSize: 10,
-              color: Colors.amber,
+          RichText(
+            textAlign: TextAlign.center,
+            text: TextSpan(
+              style: const TextStyle(
+                fontSize: 10,
+                color: Colors.amber,
+              ),
+              children: [
+                const TextSpan(text: '*New\n'),
+                TextSpan(
+                  text: isNewRecordHigh && isNewRecordLow 
+                      ? 'Record Hi/Lo' 
+                      : isNewRecordHigh 
+                          ? 'Record Hi' 
+                          : 'Record Lo',
+                ),
+              ],
             ),
           ),
         ],
@@ -291,7 +299,7 @@ class CurrentConditionsCard extends StatelessWidget {
                         mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                         children: [
                           _buildDataColumn(
-                            '${weatherData.pressure.toStringAsFixed(2)}',
+                            '${weatherData.pressure.toStringAsFixed(2)}"',
                             'Pressure',
                             description: weatherData.pressureTrend,
                           ),

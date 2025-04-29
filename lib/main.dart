@@ -1,3 +1,9 @@
+// **************************************************************************
+// * WARNING: DO NOT MODIFY THIS FILE WITHOUT EXPLICIT APPROVAL                *
+// * Changes to this file should be properly reviewed and authorized          *
+// * Version: 1.1.0                                                          *
+// **************************************************************************
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'screens/home_screen.dart';
@@ -10,6 +16,7 @@ import 'services/weather_service.dart';
 import 'repositories/weather_repository.dart';
 import 'services/cache_service.dart';
 import 'services/openweather_service.dart';
+import 'services/purple_air_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -18,7 +25,8 @@ void main() async {
   await cacheService.init();
   
   final openWeatherService = OpenWeatherService('114f72c764fa4af6462ff1f35b2befb5');
-  final weatherRepository = WeatherRepository(cacheService, openWeatherService);
+  final purpleAirService = PurpleAirService('0DA17F1E-D046-11EE-A056-42010A80000C', '211619');
+  final weatherRepository = WeatherRepository(cacheService, openWeatherService, purpleAirService);
   final weatherService = WeatherService(weatherRepository, cacheService);
 
   runApp(

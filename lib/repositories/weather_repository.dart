@@ -1,5 +1,12 @@
+// **************************************************************************
+// * WARNING: DO NOT MODIFY THIS FILE WITHOUT EXPLICIT APPROVAL                *
+// * Changes to this file should be properly reviewed and authorized          *
+// * Version: 1.1.0                                                          *
+// **************************************************************************
+
 import 'dart:convert';
-import 'dart:math';
+import 'dart:developer' as developer;
+import 'dart:math' as math;
 import 'package:http/http.dart' as http;
 import '../models/weather_data.dart';
 import '../models/forecast_data.dart';
@@ -7,217 +14,253 @@ import '../models/weather_alert.dart';
 import '../services/cache_service.dart';
 import '../services/openweather_service.dart';
 import '../services/nws_service.dart';
+import '../services/purple_air_service.dart';
 import 'package:flutter/foundation.dart';
 
 class WeatherRepository {
   final CacheService _cacheService;
   final OpenWeatherService _openWeatherService;
   final NWSService _nwsService;
+  final PurpleAirService _purpleAirService;
   static const String _testTagsUrl = 'https://cnyweather.com/testtags.php?sce=view';
   // static const String _clientRawUrl = 'https://cnyweather.com/clientraw.txt';
   static const double _stationLat = 43.2105; // Rome, NY latitude
   static const double _stationLon = -75.4557; // Rome, NY longitude
   static const String _baseUrl = 'https://cnyweather.com/testtags.php?sce=view';
 
-  WeatherRepository(this._cacheService, this._openWeatherService) 
+  WeatherRepository(this._cacheService, this._openWeatherService, this._purpleAirService) 
       : _nwsService = NWSService();
 
   Future<WeatherData> getWeatherData() async {
     try {
+      // Check for cached forecast first
+      List<ForecastPeriod>? cachedForecast = await _cacheService.getCachedForecastData();
+      List<ForecastPeriod> forecastData = cachedForecast ?? await _nwsService.getForecast();
+      
+      // If we had to fetch new forecast data, cache it
+      if (cachedForecast == null) {
+        await _cacheService.cacheForecastData(forecastData);
+      }
+
+      // Get AQI data from Purple Air, using cache if available
+      Map<String, dynamic> aqiData;
+      final cachedAQIData = await _cacheService.getCachedAQIData();
+      if (cachedAQIData != null) {
+        aqiData = cachedAQIData;
+        debugPrint('=== Purple Air AQI Data ===');
+        debugPrint('Using cached AQI data');
+        debugPrint('AQI Value: ${aqiData['aqi']}');
+        debugPrint('Last Update: ${aqiData['lastUpdate']}');
+      } else {
+        debugPrint('=== Purple Air AQI Data ===');
+        debugPrint('Fetching fresh AQI data from Purple Air');
+        aqiData = await _purpleAirService.getAQIData();
+        debugPrint('AQI Value: ${aqiData['aqi']}');
+        debugPrint('Last Update: ${DateTime.now()}');
+        await _cacheService.cacheAQIData(aqiData);
+        debugPrint('Cached new AQI data');
+      }
+      
       // Always fetch fresh data first
       final response = await http.get(
         Uri.parse(_baseUrl),
         headers: {'Accept-Charset': 'utf-8'},
       );
-      
+
       if (response.statusCode == 200) {
         // Convert bytes to string, replacing any invalid UTF-8 sequences
         final cleanedBody = String.fromCharCodes(
           response.bodyBytes.where((byte) => byte < 128)
         );
-        
-        // Get AQI data from OpenWeatherMap
-        double aqiValue = 0.0;
-        try {
-          final aqiData = await _openWeatherService.getAirQuality(_stationLat, _stationLon);
-          aqiValue = aqiData['aqi']?.toDouble() ?? 0.0;
-        } catch (e) {
-          debugPrint('Warning: Failed to fetch AQI data: $e');
-        }
 
-        // Get forecast data from NWS
-        List<ForecastPeriod> forecastData = [];
-        bool isNight = false;
-        String currentCondition = 'Clear';
-        try {
-          forecastData = await _nwsService.getForecast();
-          debugPrint('Successfully fetched forecast data: ${forecastData.length} periods');
-          if (forecastData.isNotEmpty) {
-            isNight = forecastData[0].isNight;
-            currentCondition = forecastData[0].condition;
-          }
-        } catch (e) {
-          debugPrint('Warning: Failed to fetch forecast data: $e');
-        }
-        
-        final data = _parseTestTags(cleanedBody, aqiValue);
-        
-        // Get alerts from NWS
-        List<WeatherAlert> alerts = [];
-        try {
-          alerts = await _nwsService.getAlerts();
-          debugPrint('Successfully fetched alerts: ${alerts.length} alerts');
-        } catch (e) {
-          debugPrint('Warning: Failed to fetch alerts: $e');
-        }
-        
-        // Create a new WeatherData object with the forecast data and alerts
-        final weatherData = WeatherData(
-          lastUpdatedTime: data.lastUpdatedTime,
-          lastUpdatedDate: data.lastUpdatedDate,
-          isNight: isNight,
-          condition: currentCondition,
-          iconName: _getIconName(isNight, currentCondition),
-          temperature: data.temperature,
-          tempNoDecimal: data.tempNoDecimal,
-          humidity: data.humidity,
-          dewPoint: data.dewPoint,
-          maxTemp: data.maxTemp,
-          maxTempTime: data.maxTempTime,
-          minTemp: data.minTemp,
-          minTempTime: data.minTempTime,
-          maxTempLastYear: data.maxTempLastYear,
-          minTempLastYear: data.minTempLastYear,
-          maxTempRecord: data.maxTempRecord,
-          minTempRecord: data.minTempRecord,
-          maxTempAverage: data.maxTempAverage,
-          minTempAverage: data.minTempAverage,
-          feelsLike: data.feelsLike,
-          heatIndex: data.heatIndex,
-          windChill: data.windChill,
-          humidex: data.humidex,
-          apparentTemp: data.apparentTemp,
-          apparentSolarTemp: data.apparentSolarTemp,
-          tempChangeHour: data.tempChangeHour,
-          aqi: aqiValue,
-          windSpeed: data.windSpeed,
-          windGust: data.windGust,
-          maxGust: data.maxGust,
-          maxGustTime: data.maxGustTime,
-          windDirection: data.windDirection,
-          windDirectionDegrees: data.windDirectionDegrees,
-          avgWind10Min: data.avgWind10Min,
-          monthlyHighWindGust: data.monthlyHighWindGust,
-          beaufortScale: data.beaufortScale,
-          beaufortText: data.beaufortText,
-          pressure: data.pressure,
-          pressureTrend: data.pressureTrend,
-          pressureTrend3Hour: data.pressureTrend3Hour,
-          forecastText: data.forecastText,
-          dailyRain: data.dailyRain,
-          yesterdayRain: data.yesterdayRain,
-          monthlyRain: data.monthlyRain,
-          yearlyRain: data.yearlyRain,
-          daysWithNoRain: data.daysWithNoRain,
-          daysWithRain: data.daysWithRain,
-          currentRainRate: data.currentRainRate,
-          maxRainRate: data.maxRainRate,
-          maxRainRateTime: data.maxRainRateTime,
-          solarRadiation: data.solarRadiation,
-          uvIndex: data.uvIndex,
-          highSolar: data.highSolar,
-          highUV: data.highUV,
-          highSolarTime: data.highSolarTime,
-          highUVTime: data.highUVTime,
-          burnTime: data.burnTime,
-          snowSeason: data.snowSeason,
-          snowMonth: data.snowMonth,
-          snowToday: data.snowToday,
-          snowYesterday: data.snowYesterday,
-          snowHeight: data.snowHeight,
-          snowDepth: data.snowDepth,
-          snowDaysThisMonth: data.snowDaysThisMonth,
-          snowDaysThisYear: data.snowDaysThisYear,
-          advisories: data.advisories,
-          maxTempYesterday: data.maxTempYesterday,
-          minTempYesterday: data.minTempYesterday,
+        // Debug print the raw response
+        debugPrint('\n=== Raw TestTags Response ===');
+        debugPrint(cleanedBody);
+
+        // Parse testtags data
+        final weatherData = _parseTestTags(cleanedBody);
+
+        // Create new WeatherData with forecast and AQI data
+        final updatedWeatherData = WeatherData(
+          lastUpdatedTime: weatherData.lastUpdatedTime,
+          lastUpdatedDate: weatherData.lastUpdatedDate,
+          isNight: weatherData.isNight,
+          condition: weatherData.condition,
+          iconName: weatherData.iconName,
+          temperature: weatherData.temperature,
+          tempNoDecimal: weatherData.tempNoDecimal,
+          humidity: weatherData.humidity,
+          dewPoint: weatherData.dewPoint,
+          maxTemp: weatherData.maxTemp,
+          maxTempTime: weatherData.maxTempTime,
+          minTemp: weatherData.minTemp,
+          minTempTime: weatherData.minTempTime,
+          maxTempLastYear: weatherData.maxTempLastYear,
+          minTempLastYear: weatherData.minTempLastYear,
+          maxTempRecord: weatherData.maxTempRecord,
+          minTempRecord: weatherData.minTempRecord,
+          maxTempAverage: weatherData.maxTempAverage,
+          minTempAverage: weatherData.minTempAverage,
+          feelsLike: weatherData.feelsLike,
+          heatIndex: weatherData.heatIndex,
+          windChill: weatherData.windChill,
+          humidex: weatherData.humidex,
+          apparentTemp: weatherData.apparentTemp,
+          apparentSolarTemp: weatherData.apparentSolarTemp,
+          tempChangeHour: weatherData.tempChangeHour,
+          aqi: aqiData['aqi'].toDouble(),
+          windSpeed: weatherData.windSpeed,
+          windGust: weatherData.windGust,
+          maxGust: weatherData.maxGust,
+          maxGustTime: weatherData.maxGustTime,
+          windDirection: weatherData.windDirection,
+          windDirectionDegrees: weatherData.windDirectionDegrees,
+          avgWind10Min: weatherData.avgWind10Min,
+          monthlyHighWindGust: weatherData.monthlyHighWindGust,
+          beaufortScale: weatherData.beaufortScale,
+          beaufortText: weatherData.beaufortText,
+          pressure: weatherData.pressure,
+          pressureTrend: weatherData.pressureTrend,
+          pressureTrend3Hour: weatherData.pressureTrend3Hour,
+          forecastText: weatherData.forecastText,
+          dailyRain: weatherData.dailyRain,
+          yesterdayRain: weatherData.yesterdayRain,
+          monthlyRain: weatherData.monthlyRain,
+          yearlyRain: weatherData.yearlyRain,
+          daysWithNoRain: weatherData.daysWithNoRain,
+          daysWithRain: weatherData.daysWithRain,
+          currentRainRate: weatherData.currentRainRate,
+          maxRainRate: weatherData.maxRainRate,
+          maxRainRateTime: weatherData.maxRainRateTime,
+          solarRadiation: weatherData.solarRadiation,
+          uvIndex: weatherData.uvIndex,
+          highSolar: weatherData.highSolar,
+          highUV: weatherData.highUV,
+          highSolarTime: weatherData.highSolarTime,
+          highUVTime: weatherData.highUVTime,
+          burnTime: weatherData.burnTime,
+          snowSeason: weatherData.snowSeason,
+          snowMonth: weatherData.snowMonth,
+          snowToday: weatherData.snowToday,
+          snowYesterday: weatherData.snowYesterday,
+          snowHeight: weatherData.snowHeight,
+          snowDepth: weatherData.snowDepth,
+          snowDaysThisMonth: weatherData.snowDaysThisMonth,
+          snowDaysThisYear: weatherData.snowDaysThisYear,
+          advisories: weatherData.advisories,
+          maxTempYesterday: weatherData.maxTempYesterday,
+          minTempYesterday: weatherData.minTempYesterday,
           forecast: forecastData,
-          alerts: alerts,
-          sunrise: data.sunrise,
-          sunset: data.sunset,
-          daylightChange: data.daylightChange,
-          possibleDaylight: data.possibleDaylight,
-          moonrise: data.moonrise,
-          moonset: data.moonset,
-          moonPhase: data.moonPhase,
-          moonPhaseName: data.moonPhaseName,
+          alerts: weatherData.alerts,
+          sunrise: weatherData.sunrise,
+          sunset: weatherData.sunset,
+          daylightChange: weatherData.daylightChange,
+          possibleDaylight: weatherData.possibleDaylight,
+          moonrise: weatherData.moonrise,
+          moonset: weatherData.moonset,
+          moonPhase: weatherData.moonPhase,
+          moonPhaseName: weatherData.moonPhaseName,
         );
+
+        // Cache the new data (without forecast since it's cached separately)
+        final weatherDataJson = updatedWeatherData.toJson();
+        weatherDataJson.remove('forecast'); // Remove forecast from main cache
+        await _cacheService.cacheWeatherData(weatherDataJson);
         
-        // Cache the new data
-        await _cacheService.cacheWeatherData(weatherData.toJson());
-        
-        // Debug prints for key values
-        debugPrint('\n=== Fresh Data Values ===');
-        debugPrint('Humidity: ${weatherData.humidity}');
-        debugPrint('Pressure: ${weatherData.pressure}');
-        debugPrint('Wind Speed: ${weatherData.windSpeed}');
-        debugPrint('Wind Direction: ${weatherData.windDirection}');
-        debugPrint('Forecast Periods: ${weatherData.forecast.length}');
-        
-        return weatherData;
+        return updatedWeatherData;
       } else {
-        // If fresh data fetch fails, try to get cached data
-        final cachedData = await _cacheService.getCachedWeatherData();
-        if (cachedData != null) {
-          debugPrint('Using cached data due to failed fresh fetch');
-          return WeatherData.fromJson(cachedData);
-        }
-        throw Exception('Failed to load weather data: ${response.statusCode}');
+        throw Exception('Failed to fetch weather data: ${response.statusCode}');
       }
     } catch (e) {
-      // If any error occurs, try to get cached data
-      final cachedData = await _cacheService.getCachedWeatherData();
-      if (cachedData != null) {
-        debugPrint('Using cached data due to error: $e');
-        return WeatherData.fromJson(cachedData);
+      developer.log('Error in getWeatherData: $e');
+      
+      // Try to get cached data
+      try {
+        final cachedDataStr = await _cacheService.getWeatherData();
+        if (cachedDataStr != null) {
+          return WeatherData.fromJson(json.decode(cachedDataStr));
+        }
+      } catch (cacheError) {
+        developer.log('Error getting cached data: $cacheError');
       }
-      throw Exception('Error fetching weather data: $e');
+      
+      rethrow;
     }
   }
 
   Future<Map<String, dynamic>> getQuickUpdate() async {
     try {
+      debugPrint('Fetching quick update data...');
+      // Use the correct URL for clientraw.txt
       final response = await http.get(
-        Uri.parse('https://cnyweather.com/clientraw.txt'),
+        Uri.parse('https://cnyweather.com/weather/clientraw.txt'),
         headers: {'Accept-Charset': 'utf-8'},
       );
       
+      debugPrint('Response status code: ${response.statusCode}');
+      
       if (response.statusCode == 200) {
+        final rawBody = String.fromCharCodes(response.bodyBytes);
+        debugPrint('\n=== Completely Raw Response ===');
+        debugPrint(rawBody);
+        
         final cleanedBody = String.fromCharCodes(
           response.bodyBytes.where((byte) => byte < 128)
         );
         
+        debugPrint('\n=== Cleaned Response ===');
+        debugPrint(cleanedBody);
+        
         final parts = cleanedBody.split(' ');
+        debugPrint('\n=== First 10 Fields ===');
+        for (int i = 0; i < math.min(10, parts.length); i++) {
+          debugPrint('Field[$i]: "${parts[i]}"');
+        }
+        
         if (parts.length >= 10) {
-          // Convert pressure from MB to inches (1 MB = 0.02953 inches)
-          final pressureMB = double.tryParse(parts[6]) ?? 0.0;
-          final pressureInches = pressureMB * 0.02953;
+          // Field indices from clientraw.txt documentation:
+          // [0] = Data header (12345)
+          // [1] = Average wind speed
+          // [2] = Current wind speed
+          // [3] = Wind direction
+          // [4] = Outside temperature
+          // [5] = Relative humidity
+          // [6] = Barometer
+          // [7] = Daily rain
           
-          // Ensure humidity is in the correct range (0-100)
+          final temp = double.tryParse(parts[4]) ?? 0.0;
+          final windSpeed = double.tryParse(parts[2]) ?? 0.0;
+          final windDir = parts[3];
           final humidity = double.tryParse(parts[5]) ?? 0.0;
-          final normalizedHumidity = humidity.clamp(0.0, 100.0);
+          final pressureMB = double.tryParse(parts[6]) ?? 0.0;
+          final rainfall = double.tryParse(parts[7]) ?? 0.0;
           
-          return {
-            'temperature': double.tryParse(parts[4]) ?? 0.0,
-            'humidity': normalizedHumidity,
-            'windSpeed': double.tryParse(parts[1]) ?? 0.0,
-            'windDirection': parts[2],
-            'pressure': pressureInches,
-            'rainfall': double.tryParse(parts[7]) ?? 0.0,
+          debugPrint('\n=== Direct Field Values ===');
+          debugPrint('Field[4] (Temperature) raw value: "${parts[4]}"');
+          debugPrint('Parsed temperature: $temp°C');
+          
+          final result = {
+            'temperature': temp,
+            'humidity': humidity.clamp(0.0, 100.0),
+            'windSpeed': windSpeed,
+            'windDirection': windDir,
+            'pressure': pressureMB,
+            'rainfall': rainfall,
           };
+          
+          debugPrint('\n=== Final Result ===');
+          result.forEach((key, value) {
+            debugPrint('$key: $value (${value.runtimeType})');
+          });
+          
+          return result;
+        } else {
+          debugPrint('Not enough data parts in clientraw.txt');
+          debugPrint('Total parts found: ${parts.length}');
         }
       }
       
+      debugPrint('Falling back to cached data...');
       // If we can't get fresh data, return the last known values from cache
       final cachedData = await _cacheService.getCachedWeatherData();
       if (cachedData != null) {
@@ -303,7 +346,7 @@ class WeatherRepository {
     return shortNames[fullName] ?? fullName;
   }
 
-  WeatherData _parseTestTags(String html, double aqiValue) {
+  WeatherData _parseTestTags(String html) {
     final Map<String, String> variables = {};
     // First try with double quotes
     final doubleQuotePattern = RegExp(r'\$(\w+)\s*=\s*"([^"]*)"\s*;');
@@ -323,14 +366,23 @@ class WeatherRepository {
       variables[key] = value;
     }
     
-    // Get the update time from testtags
-    final lastUpdatedTime = variables['timeupdate'] ?? DateTime.now().toString();
-    final lastUpdatedDate = variables['dateupdate'] ?? DateTime.now().toString();
+    // Debug prints for all variables
+    debugPrint('\n=== All Variables Debug ===');
+    variables.forEach((key, value) {
+      debugPrint('$key: $value');
+    });
+    
+    // Get the update time from testtags using the correct variable names
+    final lastUpdatedTime = variables['time'] ?? DateTime.now().toString();
+    final lastUpdatedDate = variables['date'] ?? DateTime.now().toString();
     
     // Debug prints for update time
     debugPrint('\n=== Update Time Debug ===');
-    debugPrint('Raw timeupdate: ${variables['timeupdate']}');
-    debugPrint('Raw dateupdate: ${variables['dateupdate']}');
+    debugPrint('Raw time: ${variables['time']}');
+    debugPrint('Raw date: ${variables['date']}');
+    debugPrint('Using lastUpdatedTime: $lastUpdatedTime');
+    debugPrint('Using lastUpdatedDate: $lastUpdatedDate');
+    debugPrint('Current system time: ${DateTime.now()}');
     
     // Clean and convert values
     final humidity = double.tryParse(variables['humidity']?.replaceAll(RegExp(r'[^\d.-]'), '') ?? '0') ?? 0.0;
@@ -403,7 +455,7 @@ class WeatherRepository {
       apparentTemp: double.tryParse(variables['apparenttemp']?.replaceAll(RegExp(r'[^\d.-]'), '') ?? '0') ?? 0.0,
       apparentSolarTemp: double.tryParse(variables['apparentsolartemp']?.replaceAll(RegExp(r'[^\d.-]'), '') ?? '0') ?? 0.0,
       tempChangeHour: double.tryParse(variables['tempchangehour']?.replaceAll(RegExp(r'[^\d.-]'), '') ?? '0') ?? 0.0,
-      aqi: aqiValue,
+      aqi: 0.0, // AQI will be set from Purple Air data
       windSpeed: double.tryParse(variables['avgspd']?.replaceAll(RegExp(r'[^\d.-]'), '') ?? '0') ?? 0.0,
       windGust: double.tryParse(variables['gstspd']?.replaceAll(RegExp(r'[^\d.-]'), '') ?? '0') ?? 0.0,
       maxGust: double.tryParse(variables['maxgst']?.replaceAll(RegExp(r'[^\d.-]'), '') ?? '0') ?? 0.0,
@@ -499,7 +551,7 @@ class WeatherRepository {
         );
         
         debugPrint('\nFirst 1000 characters of cleaned response:');
-        debugPrint(decodedBody.substring(0, min(1000, decodedBody.length)));
+        debugPrint(decodedBody.substring(0, math.min(1000, decodedBody.length)));
         
         // Extract and show key variables we're interested in
         final lines = decodedBody.split('\n');
@@ -519,7 +571,7 @@ class WeatherRepository {
         }
         
         try {
-          final weatherData = _parseTestTags(decodedBody, 0.0);
+          final weatherData = _parseTestTags(decodedBody);
           debugPrint('\nParsing test completed successfully!');
         } catch (e) {
           debugPrint('Error parsing testtags data: $e');

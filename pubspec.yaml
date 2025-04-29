@@ -1,3 +1,9 @@
+# **************************************************************************
+# * WARNING: DO NOT MODIFY THIS FILE WITHOUT EXPLICIT APPROVAL                *
+# * Changes to this file should be properly reviewed and authorized          *
+# * Version: 1.1.0                                                          *
+# **************************************************************************
+
 name: cnyweatherapp
 description: "A new Flutter project."
 # The following line prevents the package from being accidentally published to
@@ -98,12 +104,14 @@ flutter:
   # see https://flutter.dev/to/font-from-package
 
   assets:
-    - assets/icons/
     - assets/weather_icons/
     - assets/weather_icons/sct.png
     - assets/weather_icons/nsct.png
     - assets/weather_icons/few.png
     - assets/weather_icons/nfew.png
+    - assets/weather_icons/skc.png
+    - assets/weather_icons/nskc.png
+    - assets/weather_icons/ntsra.png
 
 flutter_icons:
   android: "launcher_icon"

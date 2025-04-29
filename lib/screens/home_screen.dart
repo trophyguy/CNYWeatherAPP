@@ -1,3 +1,9 @@
+// **************************************************************************
+// * WARNING: DO NOT MODIFY THIS FILE WITHOUT EXPLICIT APPROVAL                *
+// * Changes to this file should be properly reviewed and authorized          *
+// * Version: 1.1.0                                                          *
+// **************************************************************************
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../services/weather_service.dart';

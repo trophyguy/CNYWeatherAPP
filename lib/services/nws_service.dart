@@ -93,6 +93,11 @@ class NWSService {
   String _getShortName(String fullName) {
     // Convert "Monday Night" to "Mon Nite", "Monday" to "Mon", etc.
     final parts = fullName.split(' ');
+    if (parts[0] == 'Today') {
+      return 'Today';
+    } else if (parts[0] == 'Tonight') {
+      return 'Tonight';
+    }
     String day = parts[0].substring(0, 3);
     return parts.length > 1 ? '$day Nite' : day;
   }

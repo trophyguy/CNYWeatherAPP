@@ -1,8 +1,15 @@
+// **************************************************************************
+// * WARNING: DO NOT MODIFY THIS FILE WITHOUT EXPLICIT APPROVAL                *
+// * Changes to this file should be properly reviewed and authorized          *
+// * Version: 1.1.0                                                          *
+// **************************************************************************
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../services/weather_service.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'quick_update_test_screen.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -162,6 +169,32 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   }).toList(),
                 ],
               ],
+            ),
+          ),
+          const SizedBox(height: 16),
+          const Padding(
+            padding: EdgeInsets.fromLTRB(16.0, 8.0, 16.0, 8.0),
+            child: Text(
+              'Developer Options',
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.bold,
+                color: Colors.grey,
+              ),
+            ),
+          ),
+          Card(
+            child: ListTile(
+              title: const Text('Quick Update Test'),
+              subtitle: const Text('Test quick update functionality'),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () {
+                Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (context) => const QuickUpdateTestScreen(),
+                  ),
+                );
+              },
             ),
           ),
           const SizedBox(height: 16),
