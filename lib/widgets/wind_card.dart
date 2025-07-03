@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../models/weather_data.dart';
+import './animated_value_text.dart';
 
 class WindCard extends StatelessWidget {
   final WeatherData weatherData;
@@ -35,29 +36,38 @@ class WindCard extends StatelessWidget {
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Text(
-          value,
+        AnimatedValueText(
+          value: value,
           style: const TextStyle(
             fontSize: 16,
             fontWeight: FontWeight.bold,
           ),
+          flashColor: Colors.orange,
+          flashOpacity: 0.7,
+          duration: const Duration(milliseconds: 1000),
         ),
         const SizedBox(height: 2),
-        Text(
-          label,
+        AnimatedValueText(
+          value: label,
           style: TextStyle(
             fontSize: 10,
             color: Colors.grey[600],
           ),
+          flashColor: Colors.orange,
+          flashOpacity: 0.7,
+          duration: const Duration(milliseconds: 1000),
         ),
         if (subLabel != null) ...[
           const SizedBox(height: 1),
-          Text(
-            subLabel,
+          AnimatedValueText(
+            value: subLabel,
             style: TextStyle(
               fontSize: 10,
               color: Colors.grey[600],
             ),
+            flashColor: Colors.orange,
+            flashOpacity: 0.7,
+            duration: const Duration(milliseconds: 1000),
           ),
         ],
       ],
@@ -75,12 +85,9 @@ class WindCard extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Text(
+            Text(
               'Wind',
-              style: TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.bold,
-              ),
+              style: Theme.of(context).textTheme.titleLarge,
             ),
             const SizedBox(height: 12),
             Row(

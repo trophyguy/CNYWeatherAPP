@@ -1,0 +1,7 @@
+  @override
+  void dispose() {
+    _timer?.cancel();
+    _alertsSubscription?.cancel();
+    _nwsService.dispose();
+    super.dispose();
+  }

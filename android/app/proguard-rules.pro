@@ -6,14 +6,27 @@
 -keep class io.flutter.** { *; }
 -keep class io.flutter.plugins.** { *; }
 
-# Keep your application class
--keep class com.example.cnyweatherapp.** { *; }
+# Keep your model classes
+-keep class com.example.cnyweatherapp.models.** { *; }
 
 # Keep Gson stuff
 -keepattributes Signature
 -keepattributes *Annotation*
--keep class sun.misc.Unsafe { *; }
+-dontwarn sun.misc.**
 -keep class com.google.gson.** { *; }
+
+# Keep XML parsing
+-keep class org.xmlpull.** { *; }
+-keep class org.xml.sax.** { *; }
+
+# Keep HTTP client
+-keep class okhttp3.** { *; }
+-keep interface okhttp3.** { *; }
+-dontwarn okhttp3.**
+-dontwarn okio.**
+
+# Keep shared preferences
+-keep class android.content.SharedPreferences { *; }
 
 # Keep Retrofit stuff
 -keepattributes Signature
@@ -23,9 +36,5 @@
     @retrofit2.http.* <methods>;
 }
 
-# Keep OkHttp stuff
--keepattributes Signature
--keepattributes *Annotation*
--keep class okhttp3.** { *; }
--keep interface okhttp3.** { *; }
--keep class okio.** { *; } 
+# Keep your application class
+-keep class com.example.cnyweatherapp.** { *; } 

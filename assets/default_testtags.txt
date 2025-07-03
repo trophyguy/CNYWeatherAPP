@@ -1,0 +1,106 @@
+$temperature = '65.2'; // temperature
+$humidity = '55'; // humidity
+$dewpoint = '48.1'; // dew point
+$avgspd = '10'; // average wind speed
+$winddir = '180'; // wind direction
+$dirlabel = 'S'; // wind direction label
+$baro = '30.12'; // pressure
+$condition = 'Partly Cloudy'; // condition
+$updatetime = '3:00 PM'; // update time
+$date = '2025-05-05'; // date
+$time = '15:00'; // time
+$time =  '2:35 PM';	// current time
+$date =  '5/5/2025';	// current date
+$sunrise =  '5:50 am';	// sun rise time (make sure you have the correct lat/lon
+$date_month =  '05';	// Current month
+$date_year =  '2025';	// Current year
+$monthname =  'May';	// Current month name
+$dayname =  'Monday';	// Current day name
+$sunset =  '8:08 pm';	// sunset time
+$moonrisedate =  '05/05/25';	// moon rise date
+$moonrise =  '1:22 pm';	// moon rise time
+$moonsetdate =  '05/05/25';	// moon set date
+$moonset =  '2:57 am';	// moon set time
+$moonage =  'Moon age: 8 days,12 hours,35 minutes,62%';	// current age of the moon (days since new moon)
+$moonphase =  '62%';	// Moon phase %
+$moonphasename = 'Waxing Gibbous Moon'; // 10.36z addition
+$marchequinox =  '09:02 UTC March 20 2025';	// March equinox date
+$junesolstice =  '02:43 UTC June 21 2025';	// June solstice date
+$sepequinox =  '18:20 UTC September 22 2025';	// September equinox date
+$decsolstice =  '15:04 UTC December 21 2025';	// December solstice date
+$moonperihel =  '18:10 UTC January 3 2026';	// Next Moon perihel date
+$moonaphel =  '03:03 UTC July 5 2025';	// Next moon perihel date
+$moonperigee =  '01:31 UTC May 26 2025';	// Next moon perigee date
+$moonapogee =  '00:49 UTC May 11 2025';	// Next moon apogee date
+$newmoon =  '19:32 UTC April 27 2025';	// Date/time of the next/last new moon
+$nextnewmoon =  '03:03 UTC May 27 2025';	// Date/time of the next new moon for next month
+$firstquarter =  '13:52 UTC May 4 2025';	// Date/time of the next/last first quarter moon
+$lastquarter =  '11:59 UTC May 20 2025';	// Date/time of the next/last last quarter moon
+$fullmoon =  '16:57 UTC May 12 2025';	// Date/time of the next/last full moon
+$fullmoondate =  'May 12 2025';	// Date of the next/last full moon (date only)
+$suneclipse =  'August 12 2026 13:46:14 20%';	// Next sun eclipse
+$mooneclipse =  'September 07 2025 14:12:21 136%';	// Next moon eclipse date
+$easterdate =  '20 April 2025';	// Next easter date
+$chinesenewyear =  '28 January 2025 ()';	// Chinese new year
+$hoursofpossibledaylight =  '14:18';	// Total hours/minutes of possible daylight for today
+$weatherreport =  'overcast -  light rain';	// current weather conditions from selected METAR
+$maxtemp =  '64.4';	// today's maximum temperature
+$maxtempt =  '2:27 PM';	// time this occurred
+$mintemp =  '55.8';	// today's minimum temperature
+$mintempt =  '2:41 AM';	// time this occurred
+$feelslike =  '64.1';	// Shows heat index or humidex or windchill (if less than 16oC)
+$maxtempyrago = '59.0'; //max temp year ago this date
+$mintempyrago = '48.9'; //min temp year ago this date
+$heati =  '64.1';	// current heat index
+$heatinodp =  '64';	// current heat index,no decimal place
+$windch =  '64.4';	// current wind-chill
+$windchnodp =  '66';	// current wind-chill, no decimal place
+$humidexfaren =  '71.8';	// Humidex value in oF
+$humidexcelsius =  '22.1';	// Humidex value in oC
+$tempchangehour =  '+0.6';	// Temperature change in the last hour
+$maxtempyest =  '59.7';	// Yesterday's max temperature
+$maxtempyestt =  '5:23 PM';	// Time of yesterday's max temperature
+$mintempyest =  '50.2';	// Yesterday's min temperature
+$mintempyestt =  '12:00 AM';	// Time of yesterday's min temperature
+$maxtempfordaytimeofyearfromyourdata = '64.2';	// Average max temperature this date
+$mintempfordaytimeofyearfromyourdata = '41.6';	// Average min temperature this date
+$temp = 72;
+$wind_speed = 8;
+$wind_gust = 15;
+$pressure = 29.92;
+$dewpoint = 60;
+$heat_index = 74;
+$wind_chill = 70;
+$visibility = 10;
+$cloud_cover = 30;
+$precip_rate = 0;
+$precip_total = 0;
+$solar_radiation = 800;
+$uv_index = 5;
+$sunrise = "06:30";
+$sunset = "19:45";
+$moon_phase = "Waxing Crescent";
+$weather_condition = "Partly Cloudy";
+$weather_icon = "partly-cloudy-day";
+$forecast = [
+    {
+        "time": "2024-03-20 12:00",
+        "temp": 75,
+        "humidity": 60,
+        "wind_speed": 10,
+        "wind_direction": 190,
+        "precip_chance": 20,
+        "weather_condition": "Partly Cloudy",
+        "weather_icon": "partly-cloudy-day"
+    },
+    {
+        "time": "2024-03-20 15:00",
+        "temp": 78,
+        "humidity": 55,
+        "wind_speed": 12,
+        "wind_direction": 200,
+        "precip_chance": 30,
+        "weather_condition": "Partly Cloudy",
+        "weather_icon": "partly-cloudy-day"
+    }
+];

@@ -87,6 +87,10 @@ class ForecastCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    debugPrint('ForecastCard - Building with ${weatherData.forecast.length} forecast periods');
+    if (weatherData.forecast.isNotEmpty) {
+      debugPrint('ForecastCard - First period: ${weatherData.forecast[0].name}');
+    }
     return Card(
       child: InkWell(
         onTap: () {

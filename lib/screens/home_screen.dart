@@ -13,6 +13,7 @@ import '../widgets/wind_card.dart';
 import '../widgets/precipitation_card.dart';
 import '../widgets/forecast_card.dart';
 import '../widgets/sun_moon_card.dart';
+import '../widgets/animated_value_text.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'main_navigation_screen.dart';
 import 'settings_screen.dart';
@@ -22,6 +23,12 @@ class HomeScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final weatherService = Provider.of<WeatherService>(context);
+    final weatherData = weatherService.weatherData;
+    final condition = weatherData?.condition ?? 'clear';
+    final isNight = false; // Replace with your logic if you have night detection
+    final iconPath = weatherService.getConditionIcon(condition, isNight: isNight);
+
     return Scaffold(
       appBar: AppBar(
         title: Consumer<WeatherService>(
@@ -29,13 +36,22 @@ class HomeScreen extends StatelessWidget {
             return Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text('CNY Weather'),
-                Text(
-                  'Last Updated: ${weatherService.weatherData?.lastUpdatedTime ?? ''} ${weatherService.weatherData?.lastUpdatedDate ?? ''}',
+                const Text(
+                  'CNY Weather',
+                  style: TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                AnimatedValueText(
+                  value: 'Last Updated: ${weatherService.weatherData?.updateTime ?? ''} ${weatherService.weatherData?.date ?? ''}',
                   style: const TextStyle(
                     fontSize: 12,
                     fontWeight: FontWeight.normal,
                   ),
+                  flashColor: Colors.orange,
+                  flashOpacity: 0.7,
+                  duration: const Duration(milliseconds: 1000),
                 ),
               ],
             );
@@ -66,44 +82,24 @@ class HomeScreen extends StatelessWidget {
       ),
       body: Consumer<WeatherService>(
         builder: (context, weatherService, child) {
-          if (weatherService.isLoading) {
-            return const Center(
-              child: CircularProgressIndicator(),
-            );
-          }
-
-          if (weatherService.error != null) {
+          debugPrint('=== WEATHER_PERF: HomeScreen building with weatherData: ${weatherData != null} ===');
+          if (weatherData == null) {
+            debugPrint('=== WEATHER_PERF: Weather data is null, showing loading indicator ===');
             return Center(
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  const Icon(
-                    Icons.error_outline,
-                    color: Colors.red,
-                    size: 60,
-                  ),
+                  const CircularProgressIndicator(),
                   const SizedBox(height: 16),
                   Text(
-                    'Error: ${weatherService.error}',
-                    style: const TextStyle(color: Colors.red),
-                    textAlign: TextAlign.center,
-                  ),
-                  const SizedBox(height: 16),
-                  ElevatedButton(
-                    onPressed: () {
-                      weatherService.fetchWeatherData();
-                    },
-                    child: const Text('Retry'),
+                    'Weather data now updating...',
+                    style: TextStyle(
+                      fontSize: 16,
+                      color: Colors.grey[700],
+                    ),
                   ),
                 ],
               ),
-            );
-          }
-
-          final weatherData = weatherService.weatherData;
-          if (weatherData == null) {
-            return const Center(
-              child: Text('No weather data available'),
             );
           }
 
@@ -175,6 +171,7 @@ class HomeScreen extends StatelessWidget {
                 const SizedBox(height: 16),
                 CurrentConditionsCard(
                   weatherData: weatherData,
+                  iconPath: iconPath,
                 ),
                 const SizedBox(height: 16),
                 WindCard(
@@ -182,7 +179,7 @@ class HomeScreen extends StatelessWidget {
                 ),
                 const SizedBox(height: 16),
                 PrecipitationCard(
-                  weather: weatherData,
+                  weatherData: weatherData,
                 ),
                 const SizedBox(height: 16),
                 ForecastCard(

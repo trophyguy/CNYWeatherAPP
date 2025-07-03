@@ -12,341 +12,281 @@ import '../models/weather_data.dart';
 import '../models/forecast_data.dart';
 import '../models/weather_alert.dart';
 import '../services/cache_service.dart';
-import '../services/openweather_service.dart';
-import '../services/nws_service.dart';
-import '../services/purple_air_service.dart';
+import '../services/purpleair_service.dart';
+import '../services/nws_service_base.dart';
+import '../services/nws_service_cap.dart';
+import '../services/notification_service.dart';
+import '../models/settings.dart';
+import '../utils/weather_utils.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:flutter/foundation.dart';
+import 'dart:io';
+import 'dart:async';
+import 'package:flutter/material.dart';
+import '../services/nws_service.dart';
 
 class WeatherRepository {
   final CacheService _cacheService;
-  final OpenWeatherService _openWeatherService;
-  final NWSService _nwsService;
   final PurpleAirService _purpleAirService;
+  final NWSServiceBase _nwsServiceCap;
+  final NWSService _nwsServiceForecast;
+  final NotificationService _notificationService;
+  final Settings _settings;
   static const String _testTagsUrl = 'https://cnyweather.com/testtags.php?sce=view';
-  // static const String _clientRawUrl = 'https://cnyweather.com/clientraw.txt';
   static const double _stationLat = 43.2105; // Rome, NY latitude
   static const double _stationLon = -75.4557; // Rome, NY longitude
   static const String _baseUrl = 'https://cnyweather.com/testtags.php?sce=view';
 
-  WeatherRepository(this._cacheService, this._openWeatherService, this._purpleAirService) 
-      : _nwsService = NWSService();
+  WeatherRepository(
+    this._cacheService,
+    this._purpleAirService,
+    this._settings,
+    this._notificationService,
+  )   : _nwsServiceCap = NWSServiceCAP(_notificationService, _settings),
+        _nwsServiceForecast = NWSService();
+
+  Future<void> _initialize() async {
+    await _notificationService.initialize();
+    await _nwsServiceCap.initialize();
+  }
+
+  Future<String?> _getCachedWeatherData() async {
+    try {
+      return await _cacheService.getWeatherData();
+    } catch (e) {
+      developer.log('Error getting cached weather data: $e', name: 'WeatherRepository');
+      return null;
+    }
+  }
 
   Future<WeatherData> getWeatherData() async {
     try {
-      // Check for cached forecast first
-      List<ForecastPeriod>? cachedForecast = await _cacheService.getCachedForecastData();
-      List<ForecastPeriod> forecastData = cachedForecast ?? await _nwsService.getForecast();
-      
-      // If we had to fetch new forecast data, cache it
-      if (cachedForecast == null) {
-        await _cacheService.cacheForecastData(forecastData);
+      // Try to get cached data first
+      final cachedData = await _getCachedWeatherData();
+      if (cachedData != null) {
+        developer.log('Using cached weather data', name: 'WeatherRepository');
+        final weatherData = parseTestTags(cachedData);
+        
+        // Always try to get fresh AQI data
+        double aqiValue = 0.0;
+        String? aqiDescription;
+        try {
+          developer.log('Fetching fresh AQI data...', name: 'WeatherRepository');
+          final aqiData = await _purpleAirService.getAirQuality();
+          aqiValue = aqiData['aqi']?.toDouble() ?? 0.0;
+          aqiDescription = aqiData['aqiDescription'] as String?;
+          developer.log('Fresh AQI data: $aqiValue - $aqiDescription', name: 'WeatherRepository');
+          
+          // Cache the AQI data
+          await _cacheService.cacheAQIData(aqiData);
+        } catch (e) {
+          developer.log('Warning: Failed to fetch fresh AQI data: $e', name: 'WeatherRepository');
+          // Fall back to cached AQI data if available
+          final cachedAQIData = await _cacheService.getCachedAQIData();
+          if (cachedAQIData != null) {
+            aqiValue = cachedAQIData['aqi']?.toDouble() ?? 0.0;
+            aqiDescription = cachedAQIData['aqiDescription'] as String?;
+            developer.log('Using cached AQI data: $aqiValue - $aqiDescription', name: 'WeatherRepository');
+          }
+        }
+
+        // Fetch forecast even when using cache
+        List<ForecastPeriod> forecastData = [];
+        try {
+          developer.log('Fetching forecast for cached data...', name: 'WeatherRepository');
+          forecastData = await _nwsServiceForecast.getForecast();
+          developer.log('Fetched forecast for cached data: ${forecastData.length} periods', name: 'WeatherRepository');
+        } catch (e) {
+          developer.log('Warning: Failed to fetch forecast for cached data: $e', name: 'WeatherRepository');
+        }
+
+        return weatherData.copyWith(
+          aqi: aqiValue,
+          aqiDescription: aqiDescription,
+          forecast: forecastData,
+        );
       }
 
-      // Get AQI data from Purple Air, using cache if available
-      Map<String, dynamic> aqiData;
-      final cachedAQIData = await _cacheService.getCachedAQIData();
-      if (cachedAQIData != null) {
-        aqiData = cachedAQIData;
-        debugPrint('=== Purple Air AQI Data ===');
-        debugPrint('Using cached AQI data');
-        debugPrint('AQI Value: ${aqiData['aqi']}');
-        debugPrint('Last Update: ${aqiData['lastUpdate']}');
-      } else {
-        debugPrint('=== Purple Air AQI Data ===');
-        debugPrint('Fetching fresh AQI data from Purple Air');
-        aqiData = await _purpleAirService.getAQIData();
-        debugPrint('AQI Value: ${aqiData['aqi']}');
-        debugPrint('Last Update: ${DateTime.now()}');
-        await _cacheService.cacheAQIData(aqiData);
-        debugPrint('Cached new AQI data');
-      }
-      
-      // Always fetch fresh data first
+      // If no cached data, fetch fresh data
       final response = await http.get(
         Uri.parse(_baseUrl),
         headers: {'Accept-Charset': 'utf-8'},
       );
-
+      
       if (response.statusCode == 200) {
         // Convert bytes to string, replacing any invalid UTF-8 sequences
         final cleanedBody = String.fromCharCodes(
           response.bodyBytes.where((byte) => byte < 128)
         );
-
-        // Debug print the raw response
-        debugPrint('\n=== Raw TestTags Response ===');
-        debugPrint(cleanedBody);
-
-        // Parse testtags data
-        final weatherData = _parseTestTags(cleanedBody);
-
-        // Create new WeatherData with forecast and AQI data
-        final updatedWeatherData = WeatherData(
-          lastUpdatedTime: weatherData.lastUpdatedTime,
-          lastUpdatedDate: weatherData.lastUpdatedDate,
-          isNight: weatherData.isNight,
-          condition: weatherData.condition,
-          iconName: weatherData.iconName,
-          temperature: weatherData.temperature,
-          tempNoDecimal: weatherData.tempNoDecimal,
-          humidity: weatherData.humidity,
-          dewPoint: weatherData.dewPoint,
-          maxTemp: weatherData.maxTemp,
-          maxTempTime: weatherData.maxTempTime,
-          minTemp: weatherData.minTemp,
-          minTempTime: weatherData.minTempTime,
-          maxTempLastYear: weatherData.maxTempLastYear,
-          minTempLastYear: weatherData.minTempLastYear,
-          maxTempRecord: weatherData.maxTempRecord,
-          minTempRecord: weatherData.minTempRecord,
-          maxTempAverage: weatherData.maxTempAverage,
-          minTempAverage: weatherData.minTempAverage,
-          feelsLike: weatherData.feelsLike,
-          heatIndex: weatherData.heatIndex,
-          windChill: weatherData.windChill,
-          humidex: weatherData.humidex,
-          apparentTemp: weatherData.apparentTemp,
-          apparentSolarTemp: weatherData.apparentSolarTemp,
-          tempChangeHour: weatherData.tempChangeHour,
-          aqi: aqiData['aqi'].toDouble(),
-          windSpeed: weatherData.windSpeed,
-          windGust: weatherData.windGust,
-          maxGust: weatherData.maxGust,
-          maxGustTime: weatherData.maxGustTime,
-          windDirection: weatherData.windDirection,
-          windDirectionDegrees: weatherData.windDirectionDegrees,
-          avgWind10Min: weatherData.avgWind10Min,
-          monthlyHighWindGust: weatherData.monthlyHighWindGust,
-          beaufortScale: weatherData.beaufortScale,
-          beaufortText: weatherData.beaufortText,
-          pressure: weatherData.pressure,
-          pressureTrend: weatherData.pressureTrend,
-          pressureTrend3Hour: weatherData.pressureTrend3Hour,
-          forecastText: weatherData.forecastText,
-          dailyRain: weatherData.dailyRain,
-          yesterdayRain: weatherData.yesterdayRain,
-          monthlyRain: weatherData.monthlyRain,
-          yearlyRain: weatherData.yearlyRain,
-          daysWithNoRain: weatherData.daysWithNoRain,
-          daysWithRain: weatherData.daysWithRain,
-          currentRainRate: weatherData.currentRainRate,
-          maxRainRate: weatherData.maxRainRate,
-          maxRainRateTime: weatherData.maxRainRateTime,
-          solarRadiation: weatherData.solarRadiation,
-          uvIndex: weatherData.uvIndex,
-          highSolar: weatherData.highSolar,
-          highUV: weatherData.highUV,
-          highSolarTime: weatherData.highSolarTime,
-          highUVTime: weatherData.highUVTime,
-          burnTime: weatherData.burnTime,
-          snowSeason: weatherData.snowSeason,
-          snowMonth: weatherData.snowMonth,
-          snowToday: weatherData.snowToday,
-          snowYesterday: weatherData.snowYesterday,
-          snowHeight: weatherData.snowHeight,
-          snowDepth: weatherData.snowDepth,
-          snowDaysThisMonth: weatherData.snowDaysThisMonth,
-          snowDaysThisYear: weatherData.snowDaysThisYear,
-          advisories: weatherData.advisories,
-          maxTempYesterday: weatherData.maxTempYesterday,
-          minTempYesterday: weatherData.minTempYesterday,
-          forecast: forecastData,
-          alerts: weatherData.alerts,
-          sunrise: weatherData.sunrise,
-          sunset: weatherData.sunset,
-          daylightChange: weatherData.daylightChange,
-          possibleDaylight: weatherData.possibleDaylight,
-          moonrise: weatherData.moonrise,
-          moonset: weatherData.moonset,
-          moonPhase: weatherData.moonPhase,
-          moonPhaseName: weatherData.moonPhaseName,
-        );
-
-        // Cache the new data (without forecast since it's cached separately)
-        final weatherDataJson = updatedWeatherData.toJson();
-        weatherDataJson.remove('forecast'); // Remove forecast from main cache
-        await _cacheService.cacheWeatherData(weatherDataJson);
         
-        return updatedWeatherData;
+        // Cache the raw data before parsing
+        await _cacheService.saveWeatherData(cleanedBody);
+        
+        // Get AQI data from PurpleAir
+        double aqiValue = 0.0;
+        String? aqiDescription;
+        try {
+          final aqiData = await _purpleAirService.getAirQuality();
+          aqiValue = aqiData['aqi']?.toDouble() ?? 0.0;
+          aqiDescription = aqiData['aqiDescription'] as String?;
+          
+          // Cache the AQI data
+          await _cacheService.cacheAQIData(aqiData);
+        } catch (e) {
+          developer.log('Warning: Failed to fetch AQI data: $e', name: 'WeatherRepository');
+        }
+
+        // Get forecast data from old NWSService
+        List<ForecastPeriod> forecastData = [];
+        try {
+          developer.log('Attempting to fetch forecast data from NWSService...', name: 'WeatherRepository');
+          forecastData = await _nwsServiceForecast.getForecast();
+          developer.log('Successfully fetched forecast data: ${forecastData.length} periods', name: 'WeatherRepository');
+          developer.log('First forecast period: ${forecastData.isNotEmpty ? forecastData[0].name : "No periods"}', name: 'WeatherRepository');
+        } catch (e) {
+          developer.log('Warning: Failed to fetch forecast data: $e', name: 'WeatherRepository');
+        }
+        
+        // Parse and return the data with AQI and forecast
+        final weatherData = parseTestTags(cleanedBody);
+        developer.log('Created base WeatherData, adding forecast data...', name: 'WeatherRepository');
+        final weatherDataWithForecast = weatherData.copyWith(
+          aqi: aqiValue,
+          aqiDescription: aqiDescription,
+          forecast: forecastData,
+        );
+        developer.log('WeatherData with forecast created. Forecast periods: ${weatherDataWithForecast.forecast.length}', name: 'WeatherRepository');
+        return weatherDataWithForecast;
       } else {
-        throw Exception('Failed to fetch weather data: ${response.statusCode}');
+        throw Exception('Failed to load weather data: ${response.statusCode}');
       }
     } catch (e) {
-      developer.log('Error in getWeatherData: $e');
-      
-      // Try to get cached data
-      try {
-        final cachedDataStr = await _cacheService.getWeatherData();
-        if (cachedDataStr != null) {
-          return WeatherData.fromJson(json.decode(cachedDataStr));
-        }
-      } catch (cacheError) {
-        developer.log('Error getting cached data: $cacheError');
-      }
-      
+      developer.log('Error fetching weather data: $e', name: 'WeatherRepository');
       rethrow;
     }
   }
 
   Future<Map<String, dynamic>> getQuickUpdate() async {
     try {
-      debugPrint('Fetching quick update data...');
-      // Use the correct URL for clientraw.txt
       final response = await http.get(
         Uri.parse('https://cnyweather.com/weather/clientraw.txt'),
         headers: {'Accept-Charset': 'utf-8'},
-      );
-      
-      debugPrint('Response status code: ${response.statusCode}');
+      ).timeout(const Duration(seconds: 10));
       
       if (response.statusCode == 200) {
-        final rawBody = String.fromCharCodes(response.bodyBytes);
-        debugPrint('\n=== Completely Raw Response ===');
-        debugPrint(rawBody);
-        
         final cleanedBody = String.fromCharCodes(
           response.bodyBytes.where((byte) => byte < 128)
         );
         
-        debugPrint('\n=== Cleaned Response ===');
-        debugPrint(cleanedBody);
-        
-        final parts = cleanedBody.split(' ');
-        debugPrint('\n=== First 10 Fields ===');
-        for (int i = 0; i < math.min(10, parts.length); i++) {
-          debugPrint('Field[$i]: "${parts[i]}"');
-        }
-        
-        if (parts.length >= 10) {
-          // Field indices from clientraw.txt documentation:
-          // [0] = Data header (12345)
-          // [1] = Average wind speed
-          // [2] = Current wind speed
-          // [3] = Wind direction
-          // [4] = Outside temperature
-          // [5] = Relative humidity
-          // [6] = Barometer
-          // [7] = Daily rain
-          
-          final temp = double.tryParse(parts[4]) ?? 0.0;
-          final windSpeed = double.tryParse(parts[2]) ?? 0.0;
-          final windDir = parts[3];
-          final humidity = double.tryParse(parts[5]) ?? 0.0;
-          final pressureMB = double.tryParse(parts[6]) ?? 0.0;
-          final rainfall = double.tryParse(parts[7]) ?? 0.0;
-          
-          debugPrint('\n=== Direct Field Values ===');
-          debugPrint('Field[4] (Temperature) raw value: "${parts[4]}"');
-          debugPrint('Parsed temperature: $temp°C');
-          
-          final result = {
-            'temperature': temp,
-            'humidity': humidity.clamp(0.0, 100.0),
-            'windSpeed': windSpeed,
-            'windDirection': windDir,
-            'pressure': pressureMB,
-            'rainfall': rainfall,
-          };
-          
-          debugPrint('\n=== Final Result ===');
-          result.forEach((key, value) {
-            debugPrint('$key: $value (${value.runtimeType})');
-          });
-          
-          return result;
-        } else {
-          debugPrint('Not enough data parts in clientraw.txt');
-          debugPrint('Total parts found: ${parts.length}');
-        }
+        // Parse data directly
+        return _parseQuickUpdate(cleanedBody);
       }
-      
-      debugPrint('Falling back to cached data...');
-      // If we can't get fresh data, return the last known values from cache
-      final cachedData = await _cacheService.getCachedWeatherData();
-      if (cachedData != null) {
-        final weatherData = WeatherData.fromJson(cachedData);
-        return {
-          'temperature': weatherData.temperature,
-          'humidity': weatherData.humidity,
-          'windSpeed': weatherData.windSpeed,
-          'windDirection': weatherData.windDirection,
-          'pressure': weatherData.pressure,
-          'rainfall': weatherData.dailyRain,
-        };
-      }
-      
-      // If all else fails, return zeros
-      return {
-        'temperature': 0.0,
-        'humidity': 0.0,
-        'windSpeed': 0.0,
-        'windDirection': '',
-        'pressure': 0.0,
-        'rainfall': 0.0,
-      };
+      throw Exception('Invalid quick update data format');
     } catch (e) {
-      debugPrint('Error in quick update: $e');
-      // Try to get cached data as fallback
-      final cachedData = await _cacheService.getCachedWeatherData();
-      if (cachedData != null) {
-        final weatherData = WeatherData.fromJson(cachedData);
-        return {
-          'temperature': weatherData.temperature,
-          'humidity': weatherData.humidity,
-          'windSpeed': weatherData.windSpeed,
-          'windDirection': weatherData.windDirection,
-          'pressure': weatherData.pressure,
-          'rainfall': weatherData.dailyRain,
-        };
-      }
-      return {
-        'temperature': 0.0,
-        'humidity': 0.0,
-        'windSpeed': 0.0,
-        'windDirection': '',
-        'pressure': 0.0,
-        'rainfall': 0.0,
-      };
+      developer.log('Error fetching quick update: $e', name: 'WeatherRepository');
+      rethrow;
     }
   }
 
-  // Map<String, dynamic> _parseQuickUpdate(String html) {
-  //   // TODO: Implement clientraw.txt parsing logic
-  //   // This will parse the quick update data into a map of values
-  //   final Map<String, dynamic> values = {};
-  //   final parts = html.split(' ');
-    
-  //   // Map the parts to their corresponding values
-  //   // This mapping will need to be adjusted based on the actual clientraw.txt format
-  //   if (parts.length >= 10) {
-  //     values['temperature'] = double.tryParse(parts[4]) ?? 0.0;
-  //     values['humidity'] = double.tryParse(parts[5]) ?? 0.0;
-  //     values['windSpeed'] = double.tryParse(parts[1]) ?? 0.0;
-  //     values['windDirection'] = parts[2];
-  //     values['pressure'] = double.tryParse(parts[6]) ?? 0.0;
-  //     values['rainfall'] = double.tryParse(parts[7]) ?? 0.0;
-  //   }
-    
-  //   return values;
-  // }
+  // Non-static method for parsing quick update data
+  Map<String, dynamic> _parseQuickUpdate(String data) {
+    final parts = data.split(' ');
+    if (parts.length < 73) {  // Check if we have enough data for all fields including dew point
+      developer.log('Quick update data too short: ${parts.length} parts', name: 'WeatherRepository');
+      throw Exception('Invalid quick update data format: insufficient data');
+    }
 
-  String _getShortMoonPhaseName(String fullName) {
-    // Convert full moon phase names to shorter versions
-    final Map<String, String> shortNames = {
-      'New Moon': 'New',
-      'Waxing Crescent': 'Wax Cres',
-      'First Quarter': '1st Qtr',
-      'Waxing Gibbous': 'Wax Gib',
-      'Full Moon': 'Full',
-      'Waning Gibbous': 'Wan Gib',
-      'Last Quarter': 'Last Qtr',
-      'Waning Crescent': 'Wan Cres',
-    };
-    
-    return shortNames[fullName] ?? fullName;
+    try {
+      // Debug log the raw data
+      developer.log('Raw clientraw.txt data:', name: 'WeatherRepository');
+      developer.log('Parts length: ${parts.length}', name: 'WeatherRepository');
+      developer.log('Dew point raw value at index 72: ${parts[72]}', name: 'WeatherRepository');
+
+      // Wind (fields 1-3)
+      final double windSpeedKnots = double.tryParse(parts[1]) ?? 0.0;  // Current Windspeed
+      final double windSpeed = windSpeedKnots * 1.15078;  // Convert knots to mph
+      final String windDir = parts[2];  // Wind Direction
+      final String windDirText = _getFullWindDirection(windDir);
+      final double windGustKnots = double.tryParse(parts[2]) ?? 0.0;  // Wind Gust in knots
+      final double windGust = windGustKnots * 1.15078;  // Convert knots to mph
+      
+      // Temperature (field 4)
+      final double tempC = double.tryParse(parts[4]) ?? 0.0;  // Outside Temp
+      final double tempF = (tempC * 9/5) + 32;
+      
+      // Humidity and Pressure (fields 5-6)
+      final double humidity = double.tryParse(parts[5]) ?? 0.0;  // Outside Humidity
+      final double pressureMB = double.tryParse(parts[6]) ?? 0.0;  // Barometer
+      final double pressureInHg = pressureMB * 0.02953;
+      
+      // Rain (fields 7-8)
+      final double dailyRainMM = double.tryParse(parts[7]) ?? 0.0;  // Daily Rain in millimeters
+      final double dailyRain = dailyRainMM * 0.0393701;  // Convert mm to inches
+      final double rainRateMMperMin = double.tryParse(parts[10]) ?? 0.0;  // Rain Rate in mm/min (field 10)
+      debugPrint('Rain Rate Raw Value (mm/min): $rainRateMMperMin');
+      final double rainRate = rainRateMMperMin * 0.0393701 * 60;  // Convert mm/min to in/hr (multiply by 60 for min->hr)
+      debugPrint('Rain Rate Converted (in/hr): $rainRate');
+      
+      // Solar/UV (fields 9-10)
+      final double solarRadiation = double.tryParse(parts[9]) ?? 0.0;  // Solar Radiation
+      final double uvIndex = double.tryParse(parts[79]) ?? 0.0;  // UV Index (field 79)
+      
+      // Additional values
+      final double dewPointC = double.tryParse(parts[72]) ?? 0.0;  // Dew Point in Celsius (field 72)
+      developer.log('Dew point in Celsius: $dewPointC', name: 'WeatherRepository');
+      final double dewPoint = (dewPointC * 9/5) + 32;  // Convert to Fahrenheit
+      developer.log('Dew point in Fahrenheit: $dewPoint', name: 'WeatherRepository');
+      final double windChill = double.tryParse(parts[12]) ?? 0.0;  // Wind Chill
+      final double heatIndex = double.tryParse(parts[13]) ?? 0.0;  // Heat Index
+      
+      return {
+        'temperature': tempF,
+        'windSpeed': windSpeed,  // Now in mph
+        'windDirection': windDirText,
+        'windGust': windGust,  // Now in mph
+        'humidity': humidity,
+        'pressure': pressureInHg,
+        'dailyRain': dailyRain,
+        'rainRate': rainRate,
+        'solarRadiation': solarRadiation,
+        'uvIndex': uvIndex,
+        'dewPoint': dewPoint.round().toDouble(),  // Round to nearest whole number
+        'windChill': windChill,
+        'heatIndex': heatIndex,
+        'timestamp': DateTime.now().toIso8601String(),
+      };
+    } catch (e) {
+      developer.log('Error parsing quick update data: $e', name: 'WeatherRepository');
+      throw Exception('Error parsing quick update data: $e');
+    }
   }
 
-  WeatherData _parseTestTags(String html) {
+  static String _getFullWindDirection(String direction) {
+    const directions = {
+      'N': 'North',
+      'NNE': 'North-Northeast',
+      'NE': 'Northeast',
+      'ENE': 'East-Northeast',
+      'E': 'East',
+      'ESE': 'East-Southeast',
+      'SE': 'Southeast',
+      'SSE': 'South-Southeast',
+      'S': 'South',
+      'SSW': 'South-Southwest',
+      'SW': 'Southwest',
+      'WSW': 'West-Southwest',
+      'W': 'West',
+      'WNW': 'West-Northwest',
+      'NW': 'Northwest',
+      'NNW': 'North-Northwest'
+    };
+    return directions[direction] ?? direction;
+  }
+
+  // Static method for isolate computation
+  static WeatherData parseTestTags(String data) {
+    developer.log('=== WEATHER_PERF: Starting testtags parse ===', name: 'WeatherRepository');
+    
     final Map<String, String> variables = {};
     // First try with double quotes
     final doubleQuotePattern = RegExp(r'\$(\w+)\s*=\s*"([^"]*)"\s*;');
@@ -354,240 +294,216 @@ class WeatherRepository {
     final singleQuotePattern = RegExp(r"\$(\w+)\s*=\s*'([^']*)'\s*;");
     
     // Try both patterns
-    for (final match in doubleQuotePattern.allMatches(html)) {
+    for (final match in doubleQuotePattern.allMatches(data)) {
       final key = match.group(1)!;
       final value = match.group(2)!;
       variables[key] = value;
+      developer.log('Parsed variable: $key = $value', name: 'WeatherRepository');
     }
     
-    for (final match in singleQuotePattern.allMatches(html)) {
+    for (final match in singleQuotePattern.allMatches(data)) {
       final key = match.group(1)!;
       final value = match.group(2)!;
       variables[key] = value;
+      developer.log('Parsed variable: $key = $value', name: 'WeatherRepository');
     }
-    
-    // Debug prints for all variables
-    debugPrint('\n=== All Variables Debug ===');
-    variables.forEach((key, value) {
-      debugPrint('$key: $value');
-    });
-    
-    // Get the update time from testtags using the correct variable names
-    final lastUpdatedTime = variables['time'] ?? DateTime.now().toString();
-    final lastUpdatedDate = variables['date'] ?? DateTime.now().toString();
-    
-    // Debug prints for update time
-    debugPrint('\n=== Update Time Debug ===');
-    debugPrint('Raw time: ${variables['time']}');
-    debugPrint('Raw date: ${variables['date']}');
-    debugPrint('Using lastUpdatedTime: $lastUpdatedTime');
-    debugPrint('Using lastUpdatedDate: $lastUpdatedDate');
-    debugPrint('Current system time: ${DateTime.now()}');
-    
-    // Clean and convert values
-    final humidity = double.tryParse(variables['humidity']?.replaceAll(RegExp(r'[^\d.-]'), '') ?? '0') ?? 0.0;
-    final pressure = double.tryParse(variables['barometer']?.replaceAll(RegExp(r'[^\d.-]'), '') ?? 
-                                   variables['baro']?.replaceAll(RegExp(r'[^\d.-]'), '') ?? 
-                                   variables['pressure']?.replaceAll(RegExp(r'[^\d.-]'), '') ?? '0') ?? 0.0;
 
-    // Parse sun and moon times
-    final now = DateTime.now();
-    final sunrise = _parseDateTime(variables['sunrise'] ?? '', now);
-    final sunset = _parseDateTime(variables['sunset'] ?? '', now);
-    final moonrise = _parseDateTime(variables['moonrise'] ?? '', now);
-    final moonset = _parseDateTime(variables['moonset'] ?? '', now);
-    final moonPhaseName = _getShortMoonPhaseName(variables['moonphasename'] ?? '');
-    
-    // Parse possible daylight hours
-    final possibleDaylightStr = variables['hoursofpossibledaylight'] ?? '0:00';
-    final parts = possibleDaylightStr.split(':');
-    final hours = double.tryParse(parts[0]) ?? 0.0;
-    final minutes = double.tryParse(parts.length > 1 ? parts[1] : '0') ?? 0.0;
-    final possibleDaylight = hours + (minutes / 60.0);
-    
-    // Calculate daylight change
-    final today = DateTime.now();
-    final tomorrow = today.add(const Duration(days: 1));
-    final todaySunrise = sunrise;
-    final todaySunset = sunset;
-    final tomorrowSunrise = _parseDateTime(variables['sunrise'] ?? '', tomorrow);
-    final tomorrowSunset = _parseDateTime(variables['sunset'] ?? '', tomorrow);
-    
-    // Parse change in day length from testtags
-    final changeInDayStr = variables['changeinday'] ?? '00:00:00';
-    final changeParts = changeInDayStr.split(':');
-    final changeHours = int.tryParse(changeParts[0]) ?? 0;
-    final changeMinutes = int.tryParse(changeParts[1]) ?? 0;
-    final changeSeconds = int.tryParse(changeParts[2]) ?? 0;
-    final daylightChange = Duration(
-      hours: changeHours,
-      minutes: changeMinutes,
-      seconds: changeSeconds,
+    // Helper function to parse numeric values safely
+    double? parseNumeric(String? value) {
+      if (value == null) {
+        developer.log('parseNumeric: value is null', name: 'WeatherRepository');
+        return null;
+      }
+      value = value.trim();
+      if (value.isEmpty) {
+        developer.log('parseNumeric: value is empty', name: 'WeatherRepository');
+        return null;
+      }
+      try {
+        final result = double.parse(value);
+        developer.log('parseNumeric: successfully parsed $value to $result', name: 'WeatherRepository');
+        return result;
+      } catch (e) {
+        developer.log('parseNumeric: failed to parse $value: $e', name: 'WeatherRepository');
+        return null;
+      }
+    }
+
+    // --- Hybrid Sky Condition Logic ---
+    String getHybridSkyCondition({
+      required String metarCondition,
+      required double solarPercent,
+      required double uvIndex,
+      required bool isRaining,
+    }) {
+      final metar = metarCondition.trim().toLowerCase();
+      if (isRaining) return 'Rain';
+      if (metar.contains('rain')) return 'Rain';
+      if (metar.contains('snow')) return 'Snow';
+      if (metar.contains('thunder')) return 'Thunderstorm';
+
+      // Special handling for METAR 'Fair' or 'Dry'
+      if (metar == 'fair' || metar == 'dry') {
+        if (solarPercent >= 85 && uvIndex >= 4) return 'Sunny';
+        if (solarPercent <= 30 && uvIndex <= 1) return 'Cloudy';
+        return 'Fair';
+      }
+
+      if (metar.contains('clear') || metar.contains('partly')) {
+        if (solarPercent >= 80 && uvIndex >= 3) return 'Sunny';
+        if (solarPercent >= 60 && uvIndex >= 2) return 'Mostly Sunny';
+        if (solarPercent >= 40 && uvIndex >= 1) return 'Partly Cloudy';
+        if (solarPercent >= 20) return 'Mostly Cloudy';
+        return 'Cloudy';
+      }
+
+      if (metar.contains('cloudy') || metar.contains('overcast')) {
+        if (solarPercent >= 60 && uvIndex >= 2) return 'Partly Cloudy';
+        if (solarPercent >= 40) return 'Mostly Cloudy';
+        return 'Cloudy';
+      }
+
+      return metarCondition;
+    }
+
+    // Parse required variables
+    final metarCondition = variables['weatherreport']?.split('-').first.trim() ?? variables['condition'] ?? variables['weather_condition'] ?? 'Unknown';
+    final solarPercent = parseNumeric(variables['currentsolarpercent']) ?? 0.0;
+    final uvIndex = parseNumeric(variables['VPuv']) ?? parseNumeric(variables['uv_index']) ?? 0.0;
+    final rainValue = parseNumeric(variables['rain']) ?? parseNumeric(variables['precip_rate']) ?? 0.0;
+    final isRaining = rainValue > 0.0;
+
+    print('Hybrid logic input: metar="$metarCondition", solarPercent=$solarPercent, uvIndex=$uvIndex, isRaining=$isRaining');
+
+    final hybridCondition = getHybridSkyCondition(
+      metarCondition: metarCondition,
+      solarPercent: solarPercent,
+      uvIndex: uvIndex,
+      isRaining: isRaining,
     );
 
-    // Calculate moon phase (if available in testtags)
-    final moonPhase = double.tryParse(variables['moonphase']?.replaceAll(RegExp(r'[^\d.-]'), '') ?? '0') ?? 0.0;
-    
-    return WeatherData(
-      lastUpdatedTime: lastUpdatedTime,
-      lastUpdatedDate: lastUpdatedDate,
-      isNight: false,
-      condition: 'Fair',
-      iconName: _getIconName(false, 'Fair'),
-      temperature: double.tryParse(variables['tempnodp']?.replaceAll(RegExp(r'[^\d.-]'), '') ?? '0') ?? 0.0,
-      tempNoDecimal: double.tryParse(variables['tempnodp']?.replaceAll(RegExp(r'[^\d.-]'), '') ?? '0') ?? 0.0,
-      humidity: humidity,
-      dewPoint: double.tryParse(variables['dewpt']?.replaceAll(RegExp(r'[^\d.-]'), '') ?? '0') ?? 0.0,
-      maxTemp: double.tryParse(variables['maxtemp']?.replaceAll(RegExp(r'[^\d.-]'), '') ?? '0') ?? 0.0,
-      maxTempTime: variables['maxtemptime'] ?? '',
-      minTemp: double.tryParse(variables['mintemp']?.replaceAll(RegExp(r'[^\d.-]'), '') ?? '0') ?? 0.0,
-      minTempTime: variables['mintemptime'] ?? '',
-      maxTempLastYear: double.tryParse(variables['maxtempyrago']?.replaceAll(RegExp(r'[^\d.-]'), '') ?? '0') ?? 0.0,
-      minTempLastYear: double.tryParse(variables['mintempyrago']?.replaceAll(RegExp(r'[^\d.-]'), '') ?? '0') ?? 0.0,
-      maxTempRecord: double.tryParse(variables['maxtemp4today']?.replaceAll(RegExp(r'[^\d.-]'), '') ?? '0') ?? 0.0,
-      minTempRecord: double.tryParse(variables['mintemp4today']?.replaceAll(RegExp(r'[^\d.-]'), '') ?? '0') ?? 0.0,
-      maxTempAverage: double.tryParse(variables['maxtempfordaytimeofyearfromyourdata']?.replaceAll(RegExp(r'[^\d.-]'), '') ?? '0') ?? 0.0,
-      minTempAverage: double.tryParse(variables['mintempfordaytimeofyearfromyourdata']?.replaceAll(RegExp(r'[^\d.-]'), '') ?? '0') ?? 0.0,
-      feelsLike: double.tryParse(variables['feelslike']?.replaceAll(RegExp(r'[^\d.-]'), '') ?? '0') ?? 0.0,
-      heatIndex: double.tryParse(variables['heatindex']?.replaceAll(RegExp(r'[^\d.-]'), '') ?? '0') ?? 0.0,
-      windChill: double.tryParse(variables['windchill']?.replaceAll(RegExp(r'[^\d.-]'), '') ?? '0') ?? 0.0,
-      humidex: double.tryParse(variables['humidex']?.replaceAll(RegExp(r'[^\d.-]'), '') ?? '0') ?? 0.0,
-      apparentTemp: double.tryParse(variables['apparenttemp']?.replaceAll(RegExp(r'[^\d.-]'), '') ?? '0') ?? 0.0,
-      apparentSolarTemp: double.tryParse(variables['apparentsolartemp']?.replaceAll(RegExp(r'[^\d.-]'), '') ?? '0') ?? 0.0,
-      tempChangeHour: double.tryParse(variables['tempchangehour']?.replaceAll(RegExp(r'[^\d.-]'), '') ?? '0') ?? 0.0,
-      aqi: 0.0, // AQI will be set from Purple Air data
-      windSpeed: double.tryParse(variables['avgspd']?.replaceAll(RegExp(r'[^\d.-]'), '') ?? '0') ?? 0.0,
-      windGust: double.tryParse(variables['gstspd']?.replaceAll(RegExp(r'[^\d.-]'), '') ?? '0') ?? 0.0,
-      maxGust: double.tryParse(variables['maxgst']?.replaceAll(RegExp(r'[^\d.-]'), '') ?? '0') ?? 0.0,
-      maxGustTime: variables['maxgusttime'] ?? '',
+    print('Hybrid logic output: condition="$hybridCondition"');
+
+    // Use the hybrid condition for the WeatherData
+    final now = DateTime.now();
+
+    final weatherData = WeatherData(
+      lastUpdatedTime: variables['time'] ?? now.toString(),
+      lastUpdatedDate: variables['date'] ?? now.toString(),
+      date: variables['date'] ?? now.toString(),
+      isNight: now.hour < 6 || now.hour >= 18,
+      updateTime: variables['time'] ?? now.toString(),
+      windDirectionText: variables['dirlabel'] ?? '',
+      iconName: _getIconName(now.hour < 6 || now.hour >= 18, hybridCondition),
+      temperature: parseNumeric(variables['tempnodp']) ?? parseNumeric(variables['temperature']) ?? parseNumeric(variables['temp']) ?? 0.0,
+      tempNoDecimal: (parseNumeric(variables['tempnodp']) ?? parseNumeric(variables['temperature']) ?? parseNumeric(variables['temp']) ?? 0.0).round().toDouble(),
+      maxTemp: parseNumeric(variables['maxtemp']) ?? 0.0,
+      maxTempTime: variables['maxtempt'] ?? '',
+      minTemp: parseNumeric(variables['mintemp']) ?? 0.0,
+      minTempTime: variables['mintempt'] ?? '',
+      maxTempLastYear: parseNumeric(variables['maxtempyrago']) ?? 0.0,
+      minTempLastYear: parseNumeric(variables['mintempyrago']) ?? 0.0,
+      maxTempRecord: parseNumeric(variables['maxtemp4today']) ?? 0.0,
+      minTempRecord: parseNumeric(variables['mintemp4today']) ?? 0.0,
+      maxTempAverage: parseNumeric(variables['maxtempfordaytimeofyearfromyourdata']) ?? 0.0,
+      minTempAverage: parseNumeric(variables['mintempfordaytimeofyearfromyourdata']) ?? 0.0,
+      feelsLike: parseNumeric(variables['feelslike']) ?? 0.0,
+      tempChangeHour: parseNumeric(variables['tempchangehour']) ?? 0.0,
+      humidity: parseNumeric(variables['humidity']) ?? 0.0,
+      dewPoint: parseNumeric(variables['dewpt']) ?? 0.0,
+      windChill: parseNumeric(variables['windchill']) ?? 0.0,
+      heatIndex: parseNumeric(variables['heatindex']) ?? 0.0,
+      aqi: null,
+      aqiDescription: null,
+      windSpeed: parseNumeric(variables['avgspd']) ?? parseNumeric(variables['wind_speed']) ?? 0.0,
+      windGust: parseNumeric(variables['gstspd']) ?? 0.0,
+      maxGust: parseNumeric(variables['maxgst']) ?? 0.0,
+      maxGustTime: '',
       windDirection: variables['dirlabel'] ?? '',
-      windDirectionDegrees: int.tryParse(variables['winddirectiondegrees']?.replaceAll(RegExp(r'[^\d.-]'), '') ?? '0') ?? 0,
-      avgWind10Min: double.tryParse(variables['avgwind10min']?.replaceAll(RegExp(r'[^\d.-]'), '') ?? '0') ?? 0.0,
-      monthlyHighWindGust: double.tryParse(variables['mrecordwindgust']?.replaceAll(RegExp(r'[^\d.-]'), '') ?? '0') ?? 0.0,
-      beaufortScale: variables['beaufortscale'] ?? '',
-      beaufortText: variables['beauforttext'] ?? '',
-      pressure: pressure,
-      pressureTrend: variables['pressuretrendname'] ?? '',
-      pressureTrend3Hour: variables['pressuretrend3hour'] ?? '',
-      forecastText: variables['forecasttext'] ?? '',
-      dailyRain: double.tryParse(variables['dayrn']?.replaceAll(RegExp(r'[^\d.-]'), '') ?? '0') ?? 0.0,
-      yesterdayRain: double.tryParse(variables['yesterdayrain']?.replaceAll(RegExp(r'[^\d.-]'), '') ?? '0') ?? 0.0,
-      monthlyRain: double.tryParse(variables['monthrn']?.replaceAll(RegExp(r'[^\d.-]'), '') ?? '0') ?? 0.0,
-      yearlyRain: double.tryParse(variables['yearrn']?.replaceAll(RegExp(r'[^\d.-]'), '') ?? '0') ?? 0.0,
-      daysWithNoRain: int.tryParse(variables['dayswithnorain']?.replaceAll(RegExp(r'[^\d.-]'), '') ?? '0') ?? 0,
-      daysWithRain: int.tryParse(variables['dayswithrain']?.replaceAll(RegExp(r'[^\d.-]'), '') ?? '0') ?? 0,
-      currentRainRate: double.tryParse(variables['currentrainrate']?.replaceAll(RegExp(r'[^\d.-]'), '') ?? '0') ?? 0.0,
-      maxRainRate: double.tryParse(variables['maxrainrate']?.replaceAll(RegExp(r'[^\d.-]'), '') ?? '0') ?? 0.0,
-      maxRainRateTime: variables['maxrainratetime'] ?? '',
-      solarRadiation: double.tryParse(variables['solarradiation']?.replaceAll(RegExp(r'[^\d.-]'), '') ?? '0') ?? 0.0,
-      uvIndex: double.tryParse(variables['VPuv']?.replaceAll(RegExp(r'[^\d.-]'), '') ?? '0') ?? 0.0,
-      highSolar: double.tryParse(variables['highsolar']?.replaceAll(RegExp(r'[^\d.-]'), '') ?? '0') ?? 0.0,
-      highUV: double.tryParse(variables['highuv']?.replaceAll(RegExp(r'[^\d.-]'), '') ?? '0') ?? 0.0,
-      highSolarTime: variables['highsolartime'] ?? '',
-      highUVTime: variables['highuvtime'] ?? '',
-      burnTime: int.tryParse(variables['burntime']?.replaceAll(RegExp(r'[^\d.-]'), '') ?? '0') ?? 0,
-      snowSeason: double.tryParse(variables['snowseason']?.replaceAll(RegExp(r'[^\d.-]'), '') ?? '0') ?? 0.0,
-      snowMonth: double.tryParse(variables['snowmonth']?.replaceAll(RegExp(r'[^\d.-]'), '') ?? '0') ?? 0.0,
-      snowToday: double.tryParse(variables['snowtoday']?.replaceAll(RegExp(r'[^\d.-]'), '') ?? '0') ?? 0.0,
-      snowYesterday: double.tryParse(variables['snowyesterday']?.replaceAll(RegExp(r'[^\d.-]'), '') ?? '0') ?? 0.0,
-      snowHeight: double.tryParse(variables['snowheight']?.replaceAll(RegExp(r'[^\d.-]'), '') ?? '0') ?? 0.0,
-      snowDepth: double.tryParse(variables['snowdepth']?.replaceAll(RegExp(r'[^\d.-]'), '') ?? '0') ?? 0.0,
-      snowDaysThisMonth: int.tryParse(variables['snowdaysthismonth']?.replaceAll(RegExp(r'[^\d.-]'), '') ?? '0') ?? 0,
-      snowDaysThisYear: int.tryParse(variables['snowdaysthisyear']?.replaceAll(RegExp(r'[^\d.-]'), '') ?? '0') ?? 0,
+      windDirectionDegrees: parseNumeric(variables['winddir'])?.toInt() ?? 0,
+      avgWind10Min: 0.0,
+      monthlyHighWindGust: parseNumeric(variables['mrecordwindgust']) ?? 0.0,
+      beaufortScale: '',
+      beaufortText: '',
+      pressure: parseNumeric(variables['baro']) ?? parseNumeric(variables['pressure']) ?? 0.0,
+      pressureTrend: '',
+      pressureTrend3Hour: '',
+      forecastText: '',
+      dailyRain: parseNumeric(variables['dayrn']) ?? 0.0,
+      yesterdayRain: parseNumeric(variables['yesterdayrain']) ?? 0.0,
+      monthlyRain: parseNumeric(variables['monthrn']) ?? 0.0,
+      yearlyRain: parseNumeric(variables['yearrn']) ?? 0.0,
+      daysWithNoRain: 0,
+      daysWithRain: 0,
+      currentRainRate: parseNumeric(variables['precip_rate']) ?? 0.0,
+      maxRainRate: 0.0,
+      maxRainRateTime: '',
+      solarRadiation: parseNumeric(variables['solar_radiation']) ?? 0.0,
+      uvIndex: parseNumeric(variables['VPuv']) ?? 0.0,
+      highSolar: 0.0,
+      highUV: 0.0,
+      highSolarTime: '',
+      highUVTime: '',
+      burnTime: 0,
+      snowSeason: 0.0,
+      snowMonth: 0.0,
+      snowToday: 0.0,
+      snowYesterday: 0.0,
+      snowHeight: 0.0,
+      snowDepth: 0.0,
+      snowDaysThisMonth: 0,
+      snowDaysThisYear: 0,
       advisories: [],
-      maxTempYesterday: double.tryParse(variables['maxtempyest']?.replaceAll(RegExp(r'[^\d.-]'), '') ?? '0') ?? 0.0,
-      minTempYesterday: double.tryParse(variables['mintempyest']?.replaceAll(RegExp(r'[^\d.-]'), '') ?? '0') ?? 0.0,
+      maxTempYesterday: parseNumeric(variables['maxtempyest']) ?? 0.0,
+      minTempYesterday: parseNumeric(variables['mintempyest']) ?? 0.0,
       forecast: [],
       alerts: [],
-      sunrise: sunrise,
-      sunset: sunset,
-      daylightChange: daylightChange,
-      possibleDaylight: possibleDaylight,
-      moonrise: moonrise,
-      moonset: moonset,
-      moonPhase: moonPhase,
-      moonPhaseName: moonPhaseName,
+      sunrise: _parseTime(variables['sunrise'] ?? ''),
+      sunset: _parseTime(variables['sunset'] ?? ''),
+      daylightChange: _parseDuration(variables['changeinday'] ?? '00:00:00'),
+      possibleDaylight: _parseDaylightHours(variables['hoursofpossibledaylight'] ?? '00:00'),
+      moonrise: _parseTime(variables['moonrise'] ?? ''),
+      moonset: _parseTime(variables['moonset'] ?? ''),
+      moonPhase: parseNumeric(variables['moonphase']) ?? 0.0,
+      moonPhaseName: variables['moonphasename'] ?? '',
+      condition: hybridCondition,
     );
+
+    developer.log('Created WeatherData with temperature: [33m[1m${weatherData.temperature}[0m', name: 'WeatherRepository');
+    return weatherData;
   }
 
-  DateTime _parseDateTime(String timeStr, DateTime referenceDate) {
+  static DateTime _parseTime(String timeStr) {
     try {
-      // Try to parse time in various formats
-      final cleanTime = timeStr.replaceAll(RegExp(r'[^\d:]'), '');
-      final parts = cleanTime.split(':');
-      if (parts.length >= 2) {
-        final hour = int.tryParse(parts[0]) ?? 0;
-        final minute = int.tryParse(parts[1]) ?? 0;
-        return DateTime(
-          referenceDate.year,
-          referenceDate.month,
-          referenceDate.day,
-          hour,
-          minute,
-        );
+      final now = DateTime.now();
+      final parts = timeStr.split(':');
+      if (parts.length == 2) {
+        final hour = int.parse(parts[0]);
+        final minute = int.parse(parts[1].split(' ')[0]);
+        final isPM = timeStr.toLowerCase().contains('pm');
+        final adjustedHour = isPM && hour != 12 ? hour + 12 : (hour == 12 && !isPM ? 0 : hour);
+        return DateTime(now.year, now.month, now.day, adjustedHour, minute);
       }
     } catch (e) {
-      debugPrint('Error parsing time: $e');
+      developer.log('Error parsing time: $e', name: 'WeatherRepository');
     }
-    return referenceDate;
+    return DateTime.now();
   }
 
-  Future<void> testParsing() async {
+  static bool _isNightTime(String timeStr) {
     try {
-      debugPrint('Testing testtags.php parsing...');
-      final response = await http.get(
-        Uri.parse(_testTagsUrl),
-        headers: {'Accept-Charset': 'utf-8'},
-      );
-      
-      if (response.statusCode == 200) {
-        debugPrint('Successfully fetched testtags.php data');
-        debugPrint('Response headers: ${response.headers}');
-        debugPrint('Response body length: ${response.bodyBytes.length}');
-        
-        // Convert bytes to string, replacing any invalid UTF-8 sequences
-        final decodedBody = String.fromCharCodes(
-          response.bodyBytes.where((byte) => byte < 128)
-        );
-        
-        debugPrint('\nFirst 1000 characters of cleaned response:');
-        debugPrint(decodedBody.substring(0, math.min(1000, decodedBody.length)));
-        
-        // Extract and show key variables we're interested in
-        final lines = decodedBody.split('\n');
-        debugPrint('\nKey variables found:');
-        for (var line in lines) {
-          line = line.trim();
-          if (line.startsWith('\$') && (
-              line.contains('temperature') ||
-              line.contains('humidity') ||
-              line.contains('avgspd') ||
-              line.contains('dirlabel') ||
-              line.contains('baro') ||
-              line.contains('currentrainratehr')
-          )) {
-            debugPrint(line);
-          }
-        }
-        
-        try {
-          final weatherData = _parseTestTags(decodedBody);
-          debugPrint('\nParsing test completed successfully!');
-        } catch (e) {
-          debugPrint('Error parsing testtags data: $e');
-          debugPrint('Error occurred at: ${e.toString()}');
-        }
-      } else {
-        debugPrint('Failed to fetch testtags.php data. Status code: ${response.statusCode}');
-        debugPrint('Response headers: ${response.headers}');
+      final parts = timeStr.split(':');
+      if (parts.length >= 2) {
+        final hour = int.tryParse(parts[0]) ?? 0;
+        return hour < 6 || hour >= 18;  // Consider night time between 6 PM and 6 AM
       }
-    } catch (e, stackTrace) {
-      debugPrint('Error testing parsing: $e');
-      debugPrint('Stack trace: $stackTrace');
+    } catch (e) {
+      developer.log('Error parsing time for night check: $e', name: 'WeatherRepository');
     }
+    return false;
   }
 
-  String _getIconName(bool isNight, String condition) {
+  static String _getIconName(bool isNight, String condition) {
     // Convert condition to lowercase for case-insensitive matching
     final lowerCondition = condition.toLowerCase();
     
@@ -604,11 +520,9 @@ class WeatherRepository {
       return isNight ? 'nraip' : 'raip';
     } else if (lowerCondition.contains('ice')) {
       return isNight ? 'nip' : 'ip';
-    } else if (lowerCondition.contains('rain')) {
-      return isNight ? 'nra' : 'ra';
-    } else if (lowerCondition.contains('showers')) {
+    } else if (lowerCondition.contains('rain') || lowerCondition.contains('shower')) {
       return isNight ? 'nshra' : 'shra';
-    } else if (lowerCondition.contains('thunderstorm')) {
+    } else if (lowerCondition.contains('thunder') || lowerCondition.contains('tstorm')) {
       return isNight ? 'ntsra' : 'tsra';
     } else if (lowerCondition.contains('overcast') || lowerCondition.contains('cloudy')) {
       return isNight ? 'novc' : 'ovc';
@@ -616,13 +530,14 @@ class WeatherRepository {
       return isNight ? 'nbkn' : 'bkn';
     } else if (lowerCondition.contains('scattered') || lowerCondition.contains('partly')) {
       return isNight ? 'nsct' : 'sct';
-    } else if (lowerCondition.contains('few') || lowerCondition.contains('fair') || lowerCondition.contains('mostly clear')) {
+    } else if (lowerCondition.contains('few') || lowerCondition.contains('fair') || 
+               lowerCondition.contains('mostly clear')) {
       return isNight ? 'nfew' : 'few';
     } else if (lowerCondition.contains('clear') || lowerCondition.contains('sunny')) {
-      return isNight ? 'nskc' : 'skc';
-    } else if (lowerCondition.contains('fog')) {
+      return isNight ? 'nfew' : 'few';
+    } else if (lowerCondition.contains('fog') || lowerCondition.contains('mist')) {
       return isNight ? 'nfg' : 'fg';
-    } else if (lowerCondition.contains('haze')) {
+    } else if (lowerCondition.contains('haze') || lowerCondition.contains('smoke')) {
       return 'hz';
     } else if (lowerCondition.contains('hot')) {
       return 'hot';
@@ -630,9 +545,38 @@ class WeatherRepository {
       return isNight ? 'ncold' : 'cold';
     } else if (lowerCondition.contains('blizzard')) {
       return isNight ? 'nblizzard' : 'blizzard';
+    } else {
+      // Default to few clouds instead of clear sky
+      return isNight ? 'nfew' : 'few';
     }
-    
-    // Default to clear sky
-    return isNight ? 'nskc' : 'skc';
+  }
+
+  static Duration _parseDuration(String durationStr) {
+    try {
+      final parts = durationStr.split(':');
+      if (parts.length == 3) {
+        final hours = int.parse(parts[0]);
+        final minutes = int.parse(parts[1]);
+        final seconds = int.parse(parts[2]);
+        return Duration(hours: hours, minutes: minutes, seconds: seconds);
+      }
+    } catch (e) {
+      developer.log('Error parsing duration: $e', name: 'WeatherRepository');
+    }
+    return Duration.zero;
+  }
+
+  static double _parseDaylightHours(String hoursStr) {
+    try {
+      final parts = hoursStr.split(':');
+      if (parts.length == 2) {
+        final hours = int.parse(parts[0]);
+        final minutes = int.parse(parts[1]);
+        return hours + (minutes / 60.0);
+      }
+    } catch (e) {
+      developer.log('Error parsing daylight hours: $e', name: 'WeatherRepository');
+    }
+    return 0.0;
   }
 } 

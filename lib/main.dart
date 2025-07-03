@@ -12,29 +12,119 @@ import 'screens/advisories_screen.dart';
 import 'screens/radar_screen.dart';
 import 'screens/settings_screen.dart';
 import 'screens/webcams_screen.dart';
+import 'screens/weather_alerts_screen.dart';
 import 'services/weather_service.dart';
 import 'repositories/weather_repository.dart';
 import 'services/cache_service.dart';
-import 'services/openweather_service.dart';
-import 'services/purple_air_service.dart';
+import 'services/purpleair_service.dart';
+import 'services/nws_service_cap.dart';
+import 'services/notification_service.dart';
+import 'services/nws_service_base.dart';
+import 'models/settings.dart';
+import 'screens/main_navigation_screen.dart';
 
 void main() async {
+  debugPrint('=== WEATHER_PERF: main() starting runApp ===');
   WidgetsFlutterBinding.ensureInitialized();
   
+  // Create navigator key for notification handling
+  final navigatorKey = GlobalKey<NavigatorState>();
+  
+  debugPrint('=== WEATHER_PERF: Initializing CacheService ===');
+  // Initialize services
   final cacheService = CacheService();
   await cacheService.init();
+  await cacheService.populateWithDefaultIfEmpty();
   
-  final openWeatherService = OpenWeatherService('114f72c764fa4af6462ff1f35b2befb5');
-  final purpleAirService = PurpleAirService('0DA17F1E-D046-11EE-A056-42010A80000C', '211619');
-  final weatherRepository = WeatherRepository(cacheService, openWeatherService, purpleAirService);
-  final weatherService = WeatherService(weatherRepository, cacheService);
+  debugPrint('=== WEATHER_PERF: Initializing PurpleAirService ===');
+  // Initialize PurpleAir service with API key and sensor ID
+  final purpleAirService = PurpleAirService(
+    '0DA17F1E-D046-11EE-A056-42010A80000C', // API key
+    '211619' // Sensor ID
+  );
+  
+  debugPrint('=== WEATHER_PERF: Loading Settings ===');
+  // Load settings first
+  final settings = await Settings.load();
+  
+  debugPrint('=== WEATHER_PERF: Initializing NotificationService ===');
+  // Initialize notification service with navigator key
+  final notificationService = NotificationService(navigatorKey);
+  await notificationService.initialize();
+  
+  debugPrint('=== WEATHER_PERF: Initializing NWSService ===');
+  // Initialize NWS service with notifications and settings
+  final nwsService = NWSServiceCAP(notificationService, settings);
+  await nwsService.initialize();
+  
+  debugPrint('=== WEATHER_PERF: Initializing Repository and WeatherService ===');
+  // Initialize repository and weather service
+  final weatherRepository = WeatherRepository(
+    cacheService,
+    purpleAirService,
+    settings,
+    notificationService,
+  );
+  final weatherService = WeatherService(
+    weatherRepository,
+    cacheService,
+    settings,
+    purpleAirService,
+    notificationService,
+  );
 
+  debugPrint('=== WEATHER_PERF: Starting runApp ===');
   runApp(
     MultiProvider(
       providers: [
-        ChangeNotifierProvider<WeatherService>.value(value: weatherService),
+        ChangeNotifierProvider(create: (_) => weatherService),
+        Provider<NotificationService>.value(value: notificationService),
       ],
-      child: const MyApp(),
+      child: MaterialApp(
+        navigatorKey: navigatorKey,
+        title: 'CNY Weather App Template',
+        theme: ThemeData(
+          colorScheme: ColorScheme.fromSeed(
+            seedColor: Colors.blue,
+            brightness: Brightness.light,
+          ),
+          useMaterial3: true,
+          navigationBarTheme: const NavigationBarThemeData(
+            backgroundColor: Colors.white,
+            indicatorColor: Colors.blue,
+            labelTextStyle: MaterialStatePropertyAll(
+              TextStyle(fontSize: 12, fontWeight: FontWeight.w500),
+            ),
+            iconTheme: MaterialStatePropertyAll(
+              IconThemeData(size: 24),
+            ),
+          ),
+        ),
+        darkTheme: ThemeData(
+          colorScheme: ColorScheme.fromSeed(
+            seedColor: Colors.blue,
+            brightness: Brightness.dark,
+          ),
+          useMaterial3: true,
+          navigationBarTheme: const NavigationBarThemeData(
+            backgroundColor: Colors.black,
+            indicatorColor: Colors.blue,
+            labelTextStyle: MaterialStatePropertyAll(
+              TextStyle(fontSize: 12, fontWeight: FontWeight.w500),
+            ),
+            iconTheme: MaterialStatePropertyAll(
+              IconThemeData(size: 24),
+            ),
+          ),
+        ),
+        themeMode: ThemeMode.dark,
+        home: const MainNavigationScreen(),
+        routes: {
+          '/alerts': (context) => WeatherAlertsScreen(
+            weatherService: Provider.of<WeatherService>(context, listen: false),
+          ),
+        },
+      ),
     ),
   );
 }
@@ -88,56 +178,7 @@ class _MyAppState extends State<MyApp> {
         ),
       ),
       themeMode: ThemeMode.dark,
-      home: Scaffold(
-        body: Consumer<WeatherService>(
-          builder: (context, weatherService, child) {
-            final pages = <Widget>[
-              const HomeScreen(),
-              const RadarScreen(),
-              ForecastScreen(forecast: weatherService.weatherData?.forecast ?? []),
-              const AdvisoriesScreen(),
-              const WebcamsScreen(),
-            ];
-            
-            return pages[_selectedIndex];
-          },
-        ),
-        bottomNavigationBar: NavigationBar(
-          selectedIndex: _selectedIndex,
-          onDestinationSelected: (int index) {
-            setState(() {
-              _selectedIndex = index;
-            });
-          },
-          destinations: const <NavigationDestination>[
-            NavigationDestination(
-              icon: Icon(Icons.home_outlined),
-              selectedIcon: Icon(Icons.home),
-              label: 'Home',
-            ),
-            NavigationDestination(
-              icon: Icon(Icons.radar_outlined),
-              selectedIcon: Icon(Icons.radar),
-              label: 'Radar',
-            ),
-            NavigationDestination(
-              icon: Icon(Icons.calendar_today_outlined),
-              selectedIcon: Icon(Icons.calendar_today),
-              label: 'Forecast',
-            ),
-            NavigationDestination(
-              icon: Icon(Icons.warning_amber_outlined),
-              selectedIcon: Icon(Icons.warning_amber),
-              label: 'Advisories',
-            ),
-            NavigationDestination(
-              icon: Icon(Icons.camera_alt_outlined),
-              selectedIcon: Icon(Icons.camera_alt),
-              label: 'Webcams',
-            ),
-          ],
-        ),
-      ),
+      home: const MainNavigationScreen(),
     );
   }
 }

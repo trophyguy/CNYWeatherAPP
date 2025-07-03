@@ -8,8 +8,8 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../services/weather_service.dart';
-import 'package:flutter_local_notifications/flutter_local_notifications.dart';
-import 'quick_update_test_screen.dart';
+import '../models/settings.dart';
+import '../services/notification_service.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -19,245 +19,155 @@ class SettingsScreen extends StatefulWidget {
 }
 
 class _SettingsScreenState extends State<SettingsScreen> {
-  bool _notificationsEnabled = false;
-  Map<String, bool> _countyNotifications = {
-    'Oneida': true,
-    'Herkimer': true,
-    'Otsego': true,
-    'Madison': true,
-    'Lewis': true,
-    'Onondaga': true,
-  };
-  final FlutterLocalNotificationsPlugin _notifications = FlutterLocalNotificationsPlugin();
+  late Future<Settings> _settingsFuture;
+  late Settings _settings;
+  bool _isLoading = true;
 
   @override
   void initState() {
     super.initState();
-    _loadSettings();
-    _initializeNotifications();
-  }
-
-  Future<void> _loadSettings() async {
-    final prefs = await SharedPreferences.getInstance();
-    setState(() {
-      _notificationsEnabled = prefs.getBool('notifications_enabled') ?? false;
-      _countyNotifications['Oneida'] = prefs.getBool('notify_oneida') ?? true;
-      _countyNotifications['Herkimer'] = prefs.getBool('notify_herkimer') ?? true;
-      _countyNotifications['Otsego'] = prefs.getBool('notify_otsego') ?? true;
-      _countyNotifications['Madison'] = prefs.getBool('notify_madison') ?? true;
-      _countyNotifications['Lewis'] = prefs.getBool('notify_lewis') ?? true;
-      _countyNotifications['Onondaga'] = prefs.getBool('notify_onondaga') ?? true;
+    _settingsFuture = Settings.load();
+    _settingsFuture.then((settings) {
+      setState(() {
+        _settings = settings;
+        _isLoading = false;
+      });
     });
-  }
-
-  Future<void> _saveCountySetting(String county, bool value) async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool('notify_${county.toLowerCase()}', value);
-    setState(() {
-      _countyNotifications[county] = value;
-    });
-  }
-
-  Future<void> _initializeNotifications() async {
-    const androidInitSettings = AndroidInitializationSettings('notification_icon');
-    const iosInitSettings = DarwinInitializationSettings();
-    const initSettings = InitializationSettings(android: androidInitSettings, iOS: iosInitSettings);
-    
-    await _notifications.initialize(initSettings);
-
-    // Request notification permissions
-    final androidNotificationDetails = const AndroidNotificationDetails(
-      'weather_alerts',
-      'Weather Alerts',
-      channelDescription: 'Notifications for weather alerts in your area',
-      importance: Importance.high,
-      priority: Priority.high,
-      enableVibration: true,
-      enableLights: true,
-      playSound: true,
-      icon: 'notification_icon',
-    );
-    final iosNotificationDetails = const DarwinNotificationDetails();
-    final notificationDetails = NotificationDetails(
-      android: androidNotificationDetails, 
-      iOS: iosNotificationDetails
-    );
-
-    // Show a test notification immediately after initialization
-    await _notifications.show(
-      0,
-      'Weather Alerts Test',
-      'This is a test notification to verify alerts are working',
-      notificationDetails,
-    );
-  }
-
-  Future<void> _toggleNotifications(bool value) async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool('notifications_enabled', value);
-    setState(() {
-      _notificationsEnabled = value;
-    });
-
-    if (value) {
-      // Request notification permissions
-      final androidNotificationDetails = const AndroidNotificationDetails(
-        'weather_alerts',
-        'Weather Alerts',
-        channelDescription: 'Notifications for weather alerts in your area',
-        importance: Importance.high,
-        priority: Priority.high,
-        enableVibration: true,
-        enableLights: true,
-        playSound: true,
-      );
-      final iosNotificationDetails = const DarwinNotificationDetails();
-      final notificationDetails = NotificationDetails(
-        android: androidNotificationDetails, 
-        iOS: iosNotificationDetails
-      );
-
-      // Show a test notification
-      await _notifications.show(
-        0,
-        'Weather Alerts Enabled',
-        'You will now receive notifications for weather alerts in your area',
-        notificationDetails,
-      );
-    }
   }
 
   @override
   Widget build(BuildContext context) {
+    if (_isLoading) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
+    final notificationService = Provider.of<NotificationService>(context, listen: false);
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('Settings'),
       ),
       body: ListView(
         children: [
-          Card(
-            child: Column(
+          const Padding(
+            padding: EdgeInsets.all(16.0),
+            child: Text(
+              'Alert Settings',
+              style: TextStyle(
+                fontSize: 20,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ),
+          SwitchListTile(
+            title: const Text('Enable Weather Alerts'),
+            subtitle: const Text('Receive notifications for active weather alerts'),
+            value: _settings.alertsEnabled,
+            onChanged: (bool value) async {
+              await _settings.setAlertsEnabled(value);
+              setState(() {});
+            },
+          ),
+          ListTile(
+            title: const Text('Test Notifications'),
+            subtitle: const Text('Send a test notification to verify the system is working'),
+            trailing: const Icon(Icons.notifications_active),
+            onTap: () async {
+              await notificationService.showTestNotification();
+              if (mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('Test notification sent!'),
+                    duration: Duration(seconds: 2),
+                  ),
+                );
+              }
+            },
+          ),
+          const Divider(),
+          const Padding(
+            padding: EdgeInsets.all(16.0),
+            child: Text(
+              'Monitored Counties',
+              style: TextStyle(
+                fontSize: 20,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16.0),
+            child: Wrap(
+              spacing: 8.0,
+              runSpacing: 8.0,
+              alignment: WrapAlignment.center,
               children: [
-                ListTile(
-                  title: const Text('Weather Alert Notifications'),
-                  subtitle: const Text('Enable notifications for weather alerts'),
-                  trailing: Switch(
-                    value: _notificationsEnabled,
-                    onChanged: _toggleNotifications,
-                  ),
+                TextButton.icon(
+                  onPressed: () async {
+                    await _settings.setSelectedCounties(Settings.defaultCounties);
+                    setState(() {});
+                  },
+                  icon: const Icon(Icons.select_all),
+                  label: const Text('Select All'),
                 ),
-                if (_notificationsEnabled) ...[
-                  const Divider(),
-                  const Padding(
-                    padding: EdgeInsets.fromLTRB(16.0, 8.0, 16.0, 8.0),
-                    child: Text(
-                      'Monitored Counties',
-                      style: TextStyle(
-                        fontWeight: FontWeight.bold,
-                        color: Colors.grey,
-                      ),
-                    ),
-                  ),
-                  ..._countyNotifications.entries.map((entry) {
-                    return ListTile(
-                      title: Text(entry.key),
-                      trailing: Switch(
-                        value: entry.value,
-                        onChanged: (value) => _saveCountySetting(entry.key, value),
-                      ),
-                    );
-                  }).toList(),
-                ],
+                TextButton.icon(
+                  onPressed: () async {
+                    await _settings.setSelectedCounties([]);
+                    setState(() {});
+                  },
+                  icon: const Icon(Icons.deselect),
+                  label: const Text('Deselect All'),
+                ),
+                TextButton.icon(
+                  onPressed: () async {
+                    await _settings.resetToDefaults();
+                    setState(() {});
+                  },
+                  icon: const Icon(Icons.restore),
+                  label: const Text('Reset to Defaults'),
+                ),
               ],
             ),
           ),
-          const SizedBox(height: 16),
-          const Padding(
-            padding: EdgeInsets.fromLTRB(16.0, 8.0, 16.0, 8.0),
-            child: Text(
-              'Developer Options',
-              style: TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.bold,
-                color: Colors.grey,
-              ),
-            ),
-          ),
-          Card(
-            child: ListTile(
-              title: const Text('Quick Update Test'),
-              subtitle: const Text('Test quick update functionality'),
-              trailing: const Icon(Icons.chevron_right),
-              onTap: () {
-                Navigator.of(context).push(
-                  MaterialPageRoute(
-                    builder: (context) => const QuickUpdateTestScreen(),
-                  ),
-                );
+          ...Settings.defaultCounties.map((countyCode) {
+            final countyName = _getCountyName(countyCode);
+            return CheckboxListTile(
+              title: Text(countyName),
+              subtitle: Text(countyCode),
+              value: _settings.selectedCounties.contains(countyCode),
+              onChanged: (bool? value) async {
+                if (value != null) {
+                  await _settings.toggleCounty(countyCode);
+                  setState(() {});
+                }
               },
-            ),
-          ),
-          const SizedBox(height: 16),
-          const Padding(
-            padding: EdgeInsets.fromLTRB(16.0, 8.0, 16.0, 8.0),
-            child: Text(
-              'About',
-              style: TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.bold,
-                color: Colors.grey,
-              ),
-            ),
-          ),
-          Card(
-            child: Padding(
-              padding: const EdgeInsets.all(16.0),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    'Notification Settings',
-                    style: TextStyle(
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Text('• Notifications: ${_notificationsEnabled ? 'Enabled' : 'Disabled'}'),
-                  if (_notificationsEnabled) ...[
-                    const SizedBox(height: 4),
-                    const Text('• Monitored Counties:'),
-                    ..._countyNotifications.entries.map((entry) {
-                      return Padding(
-                        padding: const EdgeInsets.only(left: 16.0),
-                        child: Text('  - ${entry.key}: ${entry.value ? 'Enabled' : 'Disabled'}'),
-                      );
-                    }).toList(),
-                  ],
-                  const SizedBox(height: 16),
-                  const Text(
-                    'Data Sources',
-                    style: TextStyle(
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  const Text('• National Weather Service'),
-                  const Text('• CNYWeather.com'),
-                  const SizedBox(height: 16),
-                  const Text(
-                    'Version',
-                    style: TextStyle(
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  const Text('1.1.0'),
-                ],
-              ),
-            ),
-          ),
+            );
+          }).toList(),
         ],
       ),
     );
+  }
+
+  String _getCountyName(String countyCode) {
+    switch (countyCode) {
+      case 'NYC065':
+        return 'Oneida County';
+      case 'NYC053':
+        return 'Madison County';
+      case 'NYC067':
+        return 'Onondaga County';
+      case 'NYC075':
+        return 'Oswego County';
+      case 'NYC049':
+        return 'Lewis County';
+      case 'NYC043':
+        return 'Herkimer County';
+      case 'NYC077':
+        return 'Otsego County';
+      case 'NYC111':
+        return 'Ulster County';
+      default:
+        return 'Unknown County';
+    }
   }
 } 

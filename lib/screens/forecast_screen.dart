@@ -26,34 +26,32 @@ class ForecastScreen extends StatelessWidget {
     
     return Card(
       margin: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
-      child: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+      child: ExpansionTile(
+        title: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            // Header with date and time
+            Text(
+              period.name,
+              style: const TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+                color: Colors.white,
+              ),
+            ),
             Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Text(
-                  period.name,
-                  style: const TextStyle(
-                    fontSize: 18,
+                  '${period.temperature.round()}°F',
+                  style: TextStyle(
+                    fontSize: 24,
                     fontWeight: FontWeight.bold,
-                    color: Colors.white,
+                    color: period.isNight ? Colors.blue : Colors.red,
                   ),
                 ),
-              ],
-            ),
-            const SizedBox(height: 16),
-            // Weather icon and conditions
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // Weather icon with fixed size
+                const SizedBox(width: 8),
                 SizedBox(
-                  width: 64,
-                  height: 64,
+                  width: 40,
+                  height: 40,
                   child: Image.asset(
                     iconPath,
                     fit: BoxFit.contain,
@@ -63,74 +61,34 @@ class ForecastScreen extends StatelessWidget {
                       return const Icon(
                         Icons.error_outline,
                         color: Colors.red,
-                        size: 64,
+                        size: 40,
                       );
                     },
                   ),
                 ),
-                const SizedBox(width: 16),
-                // Weather details with fixed height
-                Expanded(
-                  child: SizedBox(
-                    height: 64, // Fixed height to match icon
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        // Condition text with wrapping
-                        Flexible(
-                          child: Text(
-                            period.condition,
-                            style: const TextStyle(
-                              fontSize: 20,
-                              color: Colors.white,
-                            ),
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                        // Temperature row
-                        Row(
-                          children: [
-                            Text(
-                              period.isNight ? 'Lo ' : 'Hi ',
-                              style: TextStyle(
-                                fontSize: 16,
-                                color: Colors.grey[400],
-                              ),
-                            ),
-                            Text(
-                              '${period.temperature.round()}°F',
-                              style: TextStyle(
-                                fontSize: 24,
-                                fontWeight: FontWeight.bold,
-                                color: period.isNight ? Colors.blue : Colors.red,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
               ],
-            ),
-            const SizedBox(height: 16),
-            // Detailed forecast with consistent spacing and wrapping
-            SizedBox(
-              height: 72, // Fixed height to accommodate up to 3 lines of text
-              child: SingleChildScrollView(
-                child: Text(
-                  period.detailedForecast,
-                  style: const TextStyle(
-                    fontSize: 16,
-                    color: Colors.white70,
-                  ),
-                ),
-              ),
             ),
           ],
         ),
+        subtitle: Text(
+          period.condition,
+          style: const TextStyle(
+            fontSize: 16,
+            color: Colors.white70,
+          ),
+        ),
+        children: [
+          Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: Text(
+              period.detailedForecast,
+              style: const TextStyle(
+                fontSize: 16,
+                color: Colors.white70,
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }

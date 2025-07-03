@@ -1,28 +1,49 @@
 import 'package:flutter/material.dart';
 import '../models/weather_data.dart';
+import './animated_value_text.dart';
 
 class CurrentConditionsCard extends StatelessWidget {
   final WeatherData weatherData;
+  final String iconPath;
 
   const CurrentConditionsCard({
     super.key,
     required this.weatherData,
+    required this.iconPath,
   });
 
   Color _getAQIColor(double aqi) {
-    if (aqi <= 1) return Colors.green;
-    if (aqi <= 2) return Colors.yellow;
-    if (aqi <= 3) return Colors.orange;
-    if (aqi <= 4) return Colors.red;
-    return Colors.purple;
+    if (aqi <= 50) return Colors.green;
+    if (aqi <= 100) return Colors.yellow;
+    if (aqi <= 150) return Colors.orange;
+    if (aqi <= 200) return Colors.red;
+    if (aqi <= 300) return Colors.purple;
+    return Colors.deepPurple;
   }
 
   String _getAQIDescription(double aqi) {
-    if (aqi <= 1) return 'Good';
-    if (aqi <= 2) return 'Fair';
-    if (aqi <= 3) return 'Moderate';
-    if (aqi <= 4) return 'Poor';
-    return 'Very Poor';
+    if (aqi <= 50) return 'Good';
+    if (aqi <= 100) return 'Moderate';
+    if (aqi <= 150) return 'Unhealthy for Sensitive Groups';
+    if (aqi <= 200) return 'Unhealthy';
+    if (aqi <= 300) return 'Very Unhealthy';
+    return 'Hazardous';
+  }
+
+  Color _getUVColor(double uv) {
+    if (uv <= 2) return Colors.green;
+    if (uv <= 5) return Colors.yellow;
+    if (uv <= 7) return Colors.orange;
+    if (uv <= 10) return Colors.red;
+    return Colors.purple;
+  }
+
+  String _getUVDescription(double uv) {
+    if (uv <= 2) return 'Low';
+    if (uv <= 5) return 'Moderate';
+    if (uv <= 7) return 'High';
+    if (uv <= 10) return 'Very High';
+    return 'Extreme';
   }
 
   Widget _buildTemperatureColumn(String label, int high, int low, {bool isNewRecordHigh = false, bool isNewRecordLow = false}) {
@@ -81,63 +102,19 @@ class CurrentConditionsCard extends StatelessWidget {
     );
   }
 
-  Widget _buildDataColumn(String value, String label, {Color? valueColor, String? description}) {
-    Color? getAQIColor(double aqi) {
-      if (aqi <= 50) return Colors.green;
-      if (aqi <= 100) return Colors.yellow;
-      if (aqi <= 150) return Colors.orange;
-      if (aqi <= 200) return Colors.red;
-      if (aqi <= 300) return Colors.purple;
-      return Colors.brown; // Maroon color for hazardous
-    }
-
-    String? getAQIDescription(double aqi) {
-      if (aqi <= 50) return 'Good';
-      if (aqi <= 100) return 'Moderate';
-      if (aqi <= 150) return 'Unhealthy for Sensitive Groups';
-      if (aqi <= 200) return 'Unhealthy';
-      if (aqi <= 300) return 'Very Unhealthy';
-      return 'Hazardous';
-    }
-
-    Color? getUVColor(double uv) {
-      if (uv <= 2) return Colors.green;
-      if (uv <= 5) return Colors.yellow;
-      if (uv <= 7) return Colors.orange;
-      if (uv <= 10) return Colors.red;
-      return Colors.purple;
-    }
-
-    String? getUVDescription(double uv) {
-      if (uv <= 2) return 'Low';
-      if (uv <= 5) return 'Moderate';
-      if (uv <= 7) return 'High';
-      if (uv <= 10) return 'Very High';
-      return 'Extreme';
-    }
-
-    final isAQI = label.toLowerCase().contains('aqi');
-    final isUV = label.toLowerCase().contains('uv');
-    final numValue = isAQI || isUV ? double.tryParse(value.replaceAll(RegExp(r'[^\d.]'), '')) : null;
-    
-    Color? effectiveValueColor;
-    String? effectiveDescription;
-    
-    if (isAQI && numValue != null) {
-      effectiveValueColor = getAQIColor(numValue);
-      effectiveDescription = getAQIDescription(numValue);
-    } else if (isUV && numValue != null) {
-      effectiveValueColor = getUVColor(numValue);
-      effectiveDescription = getUVDescription(numValue);
-    } else {
-      effectiveValueColor = valueColor;
-      effectiveDescription = description;
-    }
+  Widget _buildDataColumn(
+    String value,
+    String label, {
+    String? description,
+    Color? valueColor,
+  }) {
+    final effectiveValueColor = valueColor ?? Colors.white;
+    final effectiveDescription = description;
 
     return Container(
-      height: 65,  // Fixed height for alignment
+      height: 65,
       child: Column(
-        mainAxisAlignment: MainAxisAlignment.start,  // Align to top
+        mainAxisAlignment: MainAxisAlignment.start,
         children: [
           Text(
             value,
@@ -150,7 +127,10 @@ class CurrentConditionsCard extends StatelessWidget {
           const SizedBox(height: 2),
           Text(
             label,
-            style: const TextStyle(fontSize: 12),
+            style: const TextStyle(
+              fontSize: 12,
+              color: Colors.white,
+            ),
           ),
           if (effectiveDescription != null) ...[
             const SizedBox(height: 2),
@@ -169,26 +149,10 @@ class CurrentConditionsCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    debugPrint('CurrentConditionsCard - tempNoDecimal: ${weatherData.tempNoDecimal}');
-    debugPrint('CurrentConditionsCard - temperature: ${weatherData.temperature}');
-    
-    // Debug prints for last year, record, and average temperatures
-    debugPrint('\nCurrentConditionsCard - Last Year Temperatures:');
-    debugPrint('maxTempLastYear: ${weatherData.maxTempLastYear}');
-    debugPrint('minTempLastYear: ${weatherData.minTempLastYear}');
-    
-    debugPrint('\nCurrentConditionsCard - Record Temperatures:');
-    debugPrint('maxTempRecord: ${weatherData.maxTempRecord}');
-    debugPrint('minTempRecord: ${weatherData.minTempRecord}');
-    
-    debugPrint('\nCurrentConditionsCard - Average Temperatures:');
-    debugPrint('maxTempAverage: ${weatherData.maxTempAverage}');
-    debugPrint('minTempAverage: ${weatherData.minTempAverage}');
-    
-    // Check for new records
-    final isNewRecordHigh = weatherData.maxTemp > weatherData.maxTempRecord;
-    final isNewRecordLow = weatherData.minTemp < weatherData.minTempRecord;
-    
+    debugPrint('CurrentConditionsCard build: \u001b[33m\u001b[1m[0m');
+    debugPrint('Current condition: [33m${weatherData.condition}[0m');
+    debugPrint('Current iconName: [33m${weatherData.iconName}[0m');
+    debugPrint('Current icon asset path: assets/weather_icons/${weatherData.iconName}.png');
     return RepaintBoundary(
       child: Card(
         elevation: 4,
@@ -204,12 +168,16 @@ class CurrentConditionsCard extends StatelessWidget {
                   Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
-                        '${weatherData.tempNoDecimal.toInt()}°',
+                      AnimatedValueText(
+                        value: '${weatherData.tempNoDecimal.toStringAsFixed(1)}°F',
                         style: const TextStyle(
-                          fontSize: 72,
+                          fontSize: 60,
                           fontWeight: FontWeight.bold,
+                          color: Colors.white,
                         ),
+                        flashColor: Colors.orange,
+                        flashOpacity: 0.7,
+                        duration: const Duration(milliseconds: 1000),
                       ),
                       Text(
                         '${weatherData.tempChangeHour > 0 ? '+' : ''}${weatherData.tempChangeHour.toStringAsFixed(1)}° in last hour',
@@ -232,11 +200,11 @@ class CurrentConditionsCard extends StatelessWidget {
                     child: Column(
                       children: [
                         Image.asset(
-                          'assets/weather_icons/${weatherData.isNight ? "n" : ""}${weatherData.iconName}.png',
+                          iconPath,
                           width: 64,
                           height: 64,
                           errorBuilder: (context, error, stackTrace) {
-                            debugPrint('Error loading icon: ${weatherData.iconName}');
+                            debugPrint('Error loading icon: $iconPath');
                             return const Icon(
                               Icons.error_outline,
                               color: Colors.red,
@@ -267,8 +235,8 @@ class CurrentConditionsCard extends StatelessWidget {
                     _buildTemperatureColumn('Today', 
                       weatherData.maxTemp.toInt(), 
                       weatherData.minTemp.toInt(),
-                      isNewRecordHigh: isNewRecordHigh,
-                      isNewRecordLow: isNewRecordLow),
+                      isNewRecordHigh: weatherData.maxTemp > weatherData.maxTempRecord,
+                      isNewRecordLow: weatherData.minTemp < weatherData.minTempRecord),
                     const SizedBox(width: 16),
                     _buildTemperatureColumn('Yesterday', 
                       weatherData.maxTempYesterday.toInt(), 
@@ -299,27 +267,29 @@ class CurrentConditionsCard extends StatelessWidget {
                         mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                         children: [
                           _buildDataColumn(
-                            '${weatherData.pressure.toStringAsFixed(2)}"',
+                            '${weatherData.pressure?.toStringAsFixed(2) ?? "0.00"}"',
                             'Pressure',
                             description: weatherData.pressureTrend,
                           ),
                           _buildDataColumn(
-                            '${weatherData.dewPoint.toStringAsFixed(0)}°',
+                            '${weatherData.dewPoint?.toStringAsFixed(0) ?? "0"}°',
                             'Dew Point',
                           ),
                           _buildDataColumn(
-                            '${weatherData.humidity.toStringAsFixed(0)}%',
+                            '${weatherData.humidity?.toStringAsFixed(0) ?? "0"}%',
                             'Humidity',
                           ),
                           _buildDataColumn(
-                            '${weatherData.uvIndex.toInt()}',
+                            '${weatherData.uvIndex?.toInt() ?? 0}',
                             'UV',
+                            valueColor: _getUVColor(weatherData.uvIndex ?? 0),
+                            description: _getUVDescription(weatherData.uvIndex ?? 0),
                           ),
                           _buildDataColumn(
-                            '${weatherData.aqi.toStringAsFixed(0)}',
+                            '${weatherData.aqi?.toStringAsFixed(0) ?? "N/A"}',
                             'AQI',
-                            valueColor: _getAQIColor(weatherData.aqi),
-                            description: _getAQIDescription(weatherData.aqi),
+                            valueColor: _getAQIColor(weatherData.aqi ?? 0),
+                            description: _getAQIDescription(weatherData.aqi ?? 0),
                           ),
                         ],
                       ),

@@ -46,15 +46,15 @@ class WeatherData {
   // Time/Date
   final String lastUpdatedTime;
   final String lastUpdatedDate;
+  final String date;
   final bool isNight;
-  final String condition;
+  final String updateTime;
+  final String windDirectionText;
   final String iconName;
 
   // Temperature/Humidity
   final double temperature;
   final double tempNoDecimal;
-  final double humidity;
-  final double dewPoint;
   final double maxTemp;
   final String maxTempTime;
   final double minTemp;
@@ -66,26 +66,16 @@ class WeatherData {
   final double maxTempAverage;
   final double minTempAverage;
   final double feelsLike;
-  final double heatIndex;
-  final double windChill;
-  final double humidex;
-  final double apparentTemp;
-  final double apparentSolarTemp;
   final double tempChangeHour;
+  final double humidity;
+  final double dewPoint;
+  final double windChill;
+  final double heatIndex;
 
   // Air Quality
-  final double aqi;
-  
-  // Get AQI color based on value
-  Color get aqiColor {
-    if (aqi <= 50) return Colors.green;
-    if (aqi <= 100) return Colors.yellow;
-    if (aqi <= 150) return Colors.orange;
-    if (aqi <= 200) return Colors.red;
-    if (aqi <= 300) return Colors.purple;
-    return Colors.red.shade900;
-  }
-  
+  final double? aqi;
+  final String? aqiDescription;
+
   // Wind
   final double windSpeed;
   final double windGust;
@@ -151,22 +141,25 @@ class WeatherData {
   final DateTime sunrise;
   final DateTime sunset;
   final Duration daylightChange;
-  final double possibleDaylight;  // Total hours of possible daylight
+  final double possibleDaylight;
   final DateTime moonrise;
   final DateTime moonset;
-  final double moonPhase;  // 0 to 1
+  final double moonPhase;
   final String moonPhaseName;
+
+  // Weather condition
+  final String condition;
 
   WeatherData({
     required this.lastUpdatedTime,
     required this.lastUpdatedDate,
+    required this.date,
     required this.isNight,
-    required this.condition,
+    required this.updateTime,
+    required this.windDirectionText,
     required this.iconName,
     required this.temperature,
     required this.tempNoDecimal,
-    required this.humidity,
-    required this.dewPoint,
     required this.maxTemp,
     required this.maxTempTime,
     required this.minTemp,
@@ -178,13 +171,13 @@ class WeatherData {
     required this.maxTempAverage,
     required this.minTempAverage,
     required this.feelsLike,
-    required this.heatIndex,
-    required this.windChill,
-    required this.humidex,
-    required this.apparentTemp,
-    required this.apparentSolarTemp,
     required this.tempChangeHour,
+    required this.humidity,
+    required this.dewPoint,
+    required this.windChill,
+    required this.heatIndex,
     required this.aqi,
+    required this.aqiDescription,
     required this.windSpeed,
     required this.windGust,
     required this.maxGust,
@@ -236,80 +229,81 @@ class WeatherData {
     required this.moonset,
     required this.moonPhase,
     required this.moonPhaseName,
+    required this.condition,
   });
 
   factory WeatherData.fromJson(Map<String, dynamic> json) {
     return WeatherData(
-      lastUpdatedTime: json['lastUpdatedTime'] ?? '',
-      lastUpdatedDate: json['lastUpdatedDate'] ?? '',
-      isNight: json['isNight'] ?? false,
-      condition: json['condition'] ?? '',
-      iconName: json['iconName'] ?? 'skc',  // Default to clear sky
-      temperature: (json['temperature'] ?? 0.0).toDouble(),
-      tempNoDecimal: (json['tempNoDecimal'] ?? 0.0).toDouble(),
-      humidity: (json['humidity'] ?? 0.0).toDouble(),
-      dewPoint: (json['dewPoint'] ?? 0.0).toDouble(),
-      maxTemp: (json['maxTemp'] ?? 0.0).toDouble(),
-      maxTempTime: json['maxTempTime'] ?? '',
-      minTemp: (json['minTemp'] ?? 0.0).toDouble(),
-      minTempTime: json['minTempTime'] ?? '',
-      maxTempLastYear: (json['maxTempLastYear'] ?? 0.0).toDouble(),
-      minTempLastYear: (json['minTempLastYear'] ?? 0.0).toDouble(),
-      maxTempRecord: (json['maxTempRecord'] ?? 0.0).toDouble(),
-      minTempRecord: (json['minTempRecord'] ?? 0.0).toDouble(),
-      maxTempAverage: (json['maxTempAverage'] ?? 0.0).toDouble(),
-      minTempAverage: (json['minTempAverage'] ?? 0.0).toDouble(),
-      feelsLike: (json['feelsLike'] ?? 0.0).toDouble(),
-      heatIndex: (json['heatIndex'] ?? 0.0).toDouble(),
-      windChill: (json['windChill'] ?? 0.0).toDouble(),
-      humidex: (json['humidex'] ?? 0.0).toDouble(),
-      apparentTemp: (json['apparentTemp'] ?? 0.0).toDouble(),
-      apparentSolarTemp: (json['apparentSolarTemp'] ?? 0.0).toDouble(),
-      tempChangeHour: (json['tempChangeHour'] ?? 0.0).toDouble(),
-      aqi: (json['aqi'] ?? 0.0).toDouble(),
-      windSpeed: (json['windSpeed'] ?? 0.0).toDouble(),
-      windGust: (json['windGust'] ?? 0.0).toDouble(),
-      maxGust: (json['maxGust'] ?? 0.0).toDouble(),
-      maxGustTime: json['maxGustTime'] ?? '',
-      windDirection: json['windDirection'] ?? '',
-      windDirectionDegrees: json['windDirectionDegrees'] ?? 0,
-      avgWind10Min: (json['avgWind10Min'] ?? 0.0).toDouble(),
-      monthlyHighWindGust: (json['monthlyHighWindGust'] ?? 0.0).toDouble(),
-      beaufortScale: json['beaufortScale'] ?? '',
-      beaufortText: json['beaufortText'] ?? '',
-      pressure: (json['pressure'] ?? 0.0).toDouble(),
-      pressureTrend: json['pressureTrend'] ?? '',
-      pressureTrend3Hour: json['pressureTrend3Hour'] ?? '',
-      forecastText: json['forecastText'] ?? '',
-      dailyRain: (json['dailyRain'] ?? 0.0).toDouble(),
-      yesterdayRain: (json['yesterdayRain'] ?? 0.0).toDouble(),
-      monthlyRain: (json['monthlyRain'] ?? 0.0).toDouble(),
-      yearlyRain: (json['yearlyRain'] ?? 0.0).toDouble(),
-      daysWithNoRain: json['daysWithNoRain'] ?? 0,
-      daysWithRain: json['daysWithRain'] ?? 0,
-      currentRainRate: (json['currentRainRate'] ?? 0.0).toDouble(),
-      maxRainRate: (json['maxRainRate'] ?? 0.0).toDouble(),
-      maxRainRateTime: json['maxRainRateTime'] ?? '',
-      solarRadiation: (json['solarRadiation'] ?? 0.0).toDouble(),
-      uvIndex: (json['uvIndex'] ?? 0.0).toDouble(),
-      highSolar: (json['highSolar'] ?? 0.0).toDouble(),
-      highUV: (json['highUV'] ?? 0.0).toDouble(),
-      highSolarTime: json['highSolarTime'] ?? '',
-      highUVTime: json['highUVTime'] ?? '',
-      burnTime: json['burnTime'] ?? 0,
-      snowSeason: (json['snowSeason'] ?? 0.0).toDouble(),
-      snowMonth: (json['snowMonth'] ?? 0.0).toDouble(),
-      snowToday: (json['snowToday'] ?? 0.0).toDouble(),
-      snowYesterday: (json['snowYesterday'] ?? 0.0).toDouble(),
-      snowHeight: (json['snowHeight'] ?? 0.0).toDouble(),
-      snowDepth: (json['snowDepth'] ?? 0.0).toDouble(),
-      snowDaysThisMonth: json['snowDaysThisMonth'] ?? 0,
-      snowDaysThisYear: json['snowDaysThisYear'] ?? 0,
+      lastUpdatedTime: json['lastUpdatedTime'] as String? ?? '',
+      lastUpdatedDate: json['lastUpdatedDate'] as String? ?? '',
+      date: json['date'] as String? ?? '',
+      isNight: json['isNight'] as bool? ?? false,
+      updateTime: json['updateTime'] as String? ?? '',
+      windDirectionText: json['windDirectionText'] as String? ?? '',
+      iconName: json['iconName'] as String? ?? 'skc',
+      temperature: (json['temperature'] as num?)?.toDouble() ?? 0,
+      tempNoDecimal: (json['tempNoDecimal'] as num?)?.toDouble() ?? 0,
+      maxTemp: (json['maxTemp'] as num?)?.toDouble() ?? 0,
+      maxTempTime: json['maxTempTime'] as String? ?? '',
+      minTemp: (json['minTemp'] as num?)?.toDouble() ?? 0,
+      minTempTime: json['minTempTime'] as String? ?? '',
+      maxTempLastYear: (json['maxTempLastYear'] as num?)?.toDouble() ?? 0,
+      minTempLastYear: (json['minTempLastYear'] as num?)?.toDouble() ?? 0,
+      maxTempRecord: (json['maxTempRecord'] as num?)?.toDouble() ?? 0,
+      minTempRecord: (json['minTempRecord'] as num?)?.toDouble() ?? 0,
+      maxTempAverage: (json['maxTempAverage'] as num?)?.toDouble() ?? 0,
+      minTempAverage: (json['minTempAverage'] as num?)?.toDouble() ?? 0,
+      feelsLike: (json['feelsLike'] as num?)?.toDouble() ?? 0,
+      tempChangeHour: (json['tempChangeHour'] as num?)?.toDouble() ?? 0,
+      humidity: (json['humidity'] as num?)?.toDouble() ?? 0,
+      dewPoint: (json['dewPoint'] as num?)?.toDouble() ?? 0,
+      windChill: (json['windChill'] as num?)?.toDouble() ?? 0,
+      heatIndex: (json['heatIndex'] as num?)?.toDouble() ?? 0,
+      aqi: (json['aqi'] as num?)?.toDouble(),
+      aqiDescription: json['aqiDescription'] as String?,
+      windSpeed: (json['windSpeed'] as num?)?.toDouble() ?? 0,
+      windGust: (json['windGust'] as num?)?.toDouble() ?? 0,
+      maxGust: (json['maxGust'] as num?)?.toDouble() ?? 0,
+      maxGustTime: json['maxGustTime'] as String? ?? '',
+      windDirection: json['windDirection'] as String? ?? '',
+      windDirectionDegrees: json['windDirectionDegrees'] as int? ?? 0,
+      avgWind10Min: (json['avgWind10Min'] as num?)?.toDouble() ?? 0,
+      monthlyHighWindGust: (json['monthlyHighWindGust'] as num?)?.toDouble() ?? 0,
+      beaufortScale: json['beaufortScale'] as String? ?? '',
+      beaufortText: json['beaufortText'] as String? ?? '',
+      pressure: (json['pressure'] as num?)?.toDouble() ?? 0,
+      pressureTrend: json['pressureTrend'] as String? ?? '',
+      pressureTrend3Hour: json['pressureTrend3Hour'] as String? ?? '',
+      forecastText: json['forecastText'] as String? ?? '',
+      dailyRain: (json['dailyRain'] as num?)?.toDouble() ?? 0,
+      yesterdayRain: (json['yesterdayRain'] as num?)?.toDouble() ?? 0,
+      monthlyRain: (json['monthlyRain'] as num?)?.toDouble() ?? 0,
+      yearlyRain: (json['yearlyRain'] as num?)?.toDouble() ?? 0,
+      daysWithNoRain: json['daysWithNoRain'] as int? ?? 0,
+      daysWithRain: json['daysWithRain'] as int? ?? 0,
+      currentRainRate: (json['currentRainRate'] as num?)?.toDouble() ?? 0,
+      maxRainRate: (json['maxRainRate'] as num?)?.toDouble() ?? 0,
+      maxRainRateTime: json['maxRainRateTime'] as String? ?? '',
+      solarRadiation: (json['solarRadiation'] as num?)?.toDouble() ?? 0,
+      uvIndex: (json['uvIndex'] as num?)?.toDouble() ?? 0,
+      highSolar: (json['highSolar'] as num?)?.toDouble() ?? 0,
+      highUV: (json['highUV'] as num?)?.toDouble() ?? 0,
+      highSolarTime: json['highSolarTime'] as String? ?? '',
+      highUVTime: json['highUVTime'] as String? ?? '',
+      burnTime: json['burnTime'] as int? ?? 0,
+      snowSeason: (json['snowSeason'] as num?)?.toDouble() ?? 0,
+      snowMonth: (json['snowMonth'] as num?)?.toDouble() ?? 0,
+      snowToday: (json['snowToday'] as num?)?.toDouble() ?? 0,
+      snowYesterday: (json['snowYesterday'] as num?)?.toDouble() ?? 0,
+      snowHeight: (json['snowHeight'] as num?)?.toDouble() ?? 0,
+      snowDepth: (json['snowDepth'] as num?)?.toDouble() ?? 0,
+      snowDaysThisMonth: json['snowDaysThisMonth'] as int? ?? 0,
+      snowDaysThisYear: json['snowDaysThisYear'] as int? ?? 0,
       advisories: (json['advisories'] as List<dynamic>?)
           ?.map((e) => WeatherAdvisory.fromJson(e as Map<String, dynamic>))
           .toList() ?? [],
-      maxTempYesterday: (json['maxTempYesterday'] ?? 0.0).toDouble(),
-      minTempYesterday: (json['minTempYesterday'] ?? 0.0).toDouble(),
+      maxTempYesterday: (json['maxTempYesterday'] as num?)?.toDouble() ?? 0,
+      minTempYesterday: (json['minTempYesterday'] as num?)?.toDouble() ?? 0,
       forecast: (json['forecast'] as List<dynamic>?)
           ?.map((e) => ForecastPeriod.fromJson(e as Map<String, dynamic>))
           .toList() ?? [],
@@ -319,11 +313,12 @@ class WeatherData {
       sunrise: json['sunrise'] != null ? DateTime.parse(json['sunrise'].toString()) : DateTime.now(),
       sunset: json['sunset'] != null ? DateTime.parse(json['sunset'].toString()) : DateTime.now(),
       daylightChange: json['daylightChange'] != null ? Duration(seconds: json['daylightChange']) : Duration.zero,
-      possibleDaylight: (json['possibleDaylight'] ?? 0.0).toDouble(),
+      possibleDaylight: (json['possibleDaylight'] as num?)?.toDouble() ?? 0,
       moonrise: json['moonrise'] != null ? DateTime.parse(json['moonrise'].toString()) : DateTime.now(),
       moonset: json['moonset'] != null ? DateTime.parse(json['moonset'].toString()) : DateTime.now(),
-      moonPhase: (json['moonPhase'] ?? 0.0).toDouble(),
-      moonPhaseName: json['moonPhaseName'] ?? '',
+      moonPhase: (json['moonPhase'] as num?)?.toDouble() ?? 0,
+      moonPhaseName: json['moonPhaseName'] as String? ?? '',
+      condition: json['condition'] as String? ?? 'Unknown',
     );
   }
 
@@ -331,13 +326,13 @@ class WeatherData {
     return {
       'lastUpdatedTime': lastUpdatedTime,
       'lastUpdatedDate': lastUpdatedDate,
+      'date': date,
       'isNight': isNight,
-      'condition': condition,
+      'updateTime': updateTime,
+      'windDirectionText': windDirectionText,
       'iconName': iconName,
       'temperature': temperature,
       'tempNoDecimal': tempNoDecimal,
-      'humidity': humidity,
-      'dewPoint': dewPoint,
       'maxTemp': maxTemp,
       'maxTempTime': maxTempTime,
       'minTemp': minTemp,
@@ -349,13 +344,13 @@ class WeatherData {
       'maxTempAverage': maxTempAverage,
       'minTempAverage': minTempAverage,
       'feelsLike': feelsLike,
-      'heatIndex': heatIndex,
-      'windChill': windChill,
-      'humidex': humidex,
-      'apparentTemp': apparentTemp,
-      'apparentSolarTemp': apparentSolarTemp,
       'tempChangeHour': tempChangeHour,
+      'humidity': humidity,
+      'dewPoint': dewPoint,
+      'windChill': windChill,
+      'heatIndex': heatIndex,
       'aqi': aqi,
+      'aqiDescription': aqiDescription,
       'windSpeed': windSpeed,
       'windGust': windGust,
       'maxGust': maxGust,
@@ -407,6 +402,171 @@ class WeatherData {
       'moonset': moonset.toIso8601String(),
       'moonPhase': moonPhase,
       'moonPhaseName': moonPhaseName,
+      'condition': condition,
     };
+  }
+
+  WeatherData copyWith({
+    String? lastUpdatedTime,
+    String? lastUpdatedDate,
+    String? date,
+    bool? isNight,
+    String? updateTime,
+    String? windDirectionText,
+    String? iconName,
+    double? temperature,
+    double? tempNoDecimal,
+    double? maxTemp,
+    String? maxTempTime,
+    double? minTemp,
+    String? minTempTime,
+    double? maxTempLastYear,
+    double? minTempLastYear,
+    double? maxTempRecord,
+    double? minTempRecord,
+    double? maxTempAverage,
+    double? minTempAverage,
+    double? feelsLike,
+    double? tempChangeHour,
+    double? humidity,
+    double? dewPoint,
+    double? windChill,
+    double? heatIndex,
+    double? aqi,
+    String? aqiDescription,
+    double? windSpeed,
+    double? windGust,
+    double? maxGust,
+    String? maxGustTime,
+    String? windDirection,
+    int? windDirectionDegrees,
+    double? avgWind10Min,
+    double? monthlyHighWindGust,
+    String? beaufortScale,
+    String? beaufortText,
+    double? pressure,
+    String? pressureTrend,
+    String? pressureTrend3Hour,
+    String? forecastText,
+    double? dailyRain,
+    double? yesterdayRain,
+    double? monthlyRain,
+    double? yearlyRain,
+    int? daysWithNoRain,
+    int? daysWithRain,
+    double? currentRainRate,
+    double? maxRainRate,
+    String? maxRainRateTime,
+    double? solarRadiation,
+    double? uvIndex,
+    double? highSolar,
+    double? highUV,
+    String? highSolarTime,
+    String? highUVTime,
+    int? burnTime,
+    double? snowSeason,
+    double? snowMonth,
+    double? snowToday,
+    double? snowYesterday,
+    double? snowHeight,
+    double? snowDepth,
+    int? snowDaysThisMonth,
+    int? snowDaysThisYear,
+    List<WeatherAdvisory>? advisories,
+    double? maxTempYesterday,
+    double? minTempYesterday,
+    List<ForecastPeriod>? forecast,
+    List<WeatherAlert>? alerts,
+    DateTime? sunrise,
+    DateTime? sunset,
+    Duration? daylightChange,
+    double? possibleDaylight,
+    DateTime? moonrise,
+    DateTime? moonset,
+    double? moonPhase,
+    String? moonPhaseName,
+    String? condition,
+  }) {
+    return WeatherData(
+      lastUpdatedTime: lastUpdatedTime ?? this.lastUpdatedTime,
+      lastUpdatedDate: lastUpdatedDate ?? this.lastUpdatedDate,
+      date: date ?? this.date,
+      isNight: isNight ?? this.isNight,
+      updateTime: updateTime ?? this.updateTime,
+      windDirectionText: windDirectionText ?? this.windDirectionText,
+      iconName: iconName ?? this.iconName,
+      temperature: temperature ?? this.temperature,
+      tempNoDecimal: tempNoDecimal ?? this.tempNoDecimal,
+      maxTemp: maxTemp ?? this.maxTemp,
+      maxTempTime: maxTempTime ?? this.maxTempTime,
+      minTemp: minTemp ?? this.minTemp,
+      minTempTime: minTempTime ?? this.minTempTime,
+      maxTempLastYear: maxTempLastYear ?? this.maxTempLastYear,
+      minTempLastYear: minTempLastYear ?? this.minTempLastYear,
+      maxTempRecord: maxTempRecord ?? this.maxTempRecord,
+      minTempRecord: minTempRecord ?? this.minTempRecord,
+      maxTempAverage: maxTempAverage ?? this.maxTempAverage,
+      minTempAverage: minTempAverage ?? this.minTempAverage,
+      feelsLike: feelsLike ?? this.feelsLike,
+      tempChangeHour: tempChangeHour ?? this.tempChangeHour,
+      humidity: humidity ?? this.humidity,
+      dewPoint: dewPoint ?? this.dewPoint,
+      windChill: windChill ?? this.windChill,
+      heatIndex: heatIndex ?? this.heatIndex,
+      aqi: aqi ?? this.aqi,
+      aqiDescription: aqiDescription ?? this.aqiDescription,
+      windSpeed: windSpeed ?? this.windSpeed,
+      windGust: windGust ?? this.windGust,
+      maxGust: maxGust ?? this.maxGust,
+      maxGustTime: maxGustTime ?? this.maxGustTime,
+      windDirection: windDirection ?? this.windDirection,
+      windDirectionDegrees: windDirectionDegrees ?? this.windDirectionDegrees,
+      avgWind10Min: avgWind10Min ?? this.avgWind10Min,
+      monthlyHighWindGust: monthlyHighWindGust ?? this.monthlyHighWindGust,
+      beaufortScale: beaufortScale ?? this.beaufortScale,
+      beaufortText: beaufortText ?? this.beaufortText,
+      pressure: pressure ?? this.pressure,
+      pressureTrend: pressureTrend ?? this.pressureTrend,
+      pressureTrend3Hour: pressureTrend3Hour ?? this.pressureTrend3Hour,
+      forecastText: forecastText ?? this.forecastText,
+      dailyRain: dailyRain ?? this.dailyRain,
+      yesterdayRain: yesterdayRain ?? this.yesterdayRain,
+      monthlyRain: monthlyRain ?? this.monthlyRain,
+      yearlyRain: yearlyRain ?? this.yearlyRain,
+      daysWithNoRain: daysWithNoRain ?? this.daysWithNoRain,
+      daysWithRain: daysWithRain ?? this.daysWithRain,
+      currentRainRate: currentRainRate ?? this.currentRainRate,
+      maxRainRate: maxRainRate ?? this.maxRainRate,
+      maxRainRateTime: maxRainRateTime ?? this.maxRainRateTime,
+      solarRadiation: solarRadiation ?? this.solarRadiation,
+      uvIndex: uvIndex ?? this.uvIndex,
+      highSolar: highSolar ?? this.highSolar,
+      highUV: highUV ?? this.highUV,
+      highSolarTime: highSolarTime ?? this.highSolarTime,
+      highUVTime: highUVTime ?? this.highUVTime,
+      burnTime: burnTime ?? this.burnTime,
+      snowSeason: snowSeason ?? this.snowSeason,
+      snowMonth: snowMonth ?? this.snowMonth,
+      snowToday: snowToday ?? this.snowToday,
+      snowYesterday: snowYesterday ?? this.snowYesterday,
+      snowHeight: snowHeight ?? this.snowHeight,
+      snowDepth: snowDepth ?? this.snowDepth,
+      snowDaysThisMonth: snowDaysThisMonth ?? this.snowDaysThisMonth,
+      snowDaysThisYear: snowDaysThisYear ?? this.snowDaysThisYear,
+      advisories: advisories ?? this.advisories,
+      maxTempYesterday: maxTempYesterday ?? this.maxTempYesterday,
+      minTempYesterday: minTempYesterday ?? this.minTempYesterday,
+      forecast: forecast ?? this.forecast,
+      alerts: alerts ?? this.alerts,
+      sunrise: sunrise ?? this.sunrise,
+      sunset: sunset ?? this.sunset,
+      daylightChange: daylightChange ?? this.daylightChange,
+      possibleDaylight: possibleDaylight ?? this.possibleDaylight,
+      moonrise: moonrise ?? this.moonrise,
+      moonset: moonset ?? this.moonset,
+      moonPhase: moonPhase ?? this.moonPhase,
+      moonPhaseName: moonPhaseName ?? this.moonPhaseName,
+      condition: condition ?? this.condition,
+    );
   }
 } 
